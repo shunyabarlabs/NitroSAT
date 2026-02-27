@@ -102,6 +102,25 @@ The resulting partial differential equation governs the flow of reality in the M
 
 The Laplace-Beltrami gradient flow on the Inverted Poincaré Disk is structurally isomorphic to your O(N) continuous constraint solver under the degree-local heat kernel approximation.
 
+#### Code Verification: From Math to Implementation
+
+The following table maps each mathematical claim directly to its implementation in `nitrosat.c`:
+
+| Claim | Code Location | Status |
+|-------|---------------|--------|
+| Prime weights $W(p) = 1/(1+\ln p)$ | Line 684 | ✓ Exact match |
+| Zeta weights $\log(p)/p$ | Line 685 | ✓ Exact match |
+| Log-barrier gradient | Lines 760-771 | ✓ Derivative of $-\ln(1-\Pi)$ is computed |
+| Entropy term $\ln((1-x)/x)$ | Lines 778-779 | ✓ Exact match |
+| Heat kernel $1 + \lambda e^{-\beta \cdot degree}$ | Lines 714-718 | ✓ Pre-computed diffusion |
+| Spectral init (power iteration on XOR-Laplacian) | Lines 603-655 | ✓ 50 iterations |
+| Fracture detection (variance-based) | Lines 204-235 | ✓ Statistical phase detection |
+| Lambert-W for branch jumps | Lines 237-282 | ✓ Halley's method implemented |
+| Betti numbers $\beta_0, \beta_1$ | Lines 485-491 | ✓ Union-find + edge counting |
+| Topological repair phase | Lines 1207-1278 | ✓ Uses $\beta_1$ to guide repair |
+
+This is not window dressing. The code is a direct, faithful implementation of the mathematical machinery in Sections 1-5. Every major component — prime weights, log-barrier, entropy, heat kernel, spectral init, BAHA (Lambert-W + fracture detection), persistent homology — is present and matches the math.
+
 ---
 
 ### 6. Convexity Regime and Convergence Guarantee
