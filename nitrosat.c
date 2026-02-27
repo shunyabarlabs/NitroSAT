@@ -256,31 +256,7 @@ static double lambert_W0(double z)
     return w;
 }
 
-/* ---- Lambert W_{-1} (lower branch) via Halley's method ------------ */
-static double lambert_Wm1(double z) {
-    if (z < -E_INV || z >= 0) return NAN;
-    /* Initial guess for W_{-1} branch */
-    double w;
-    if (z > -0.1) {
-        w = log(-z) - log(-log(-z));
-    } else {
-        w = -1.0 - sqrt(2.0 * (1.0 + z * exp(1.0)));
-    }
-    for (int i = 0; i < 64; ++i) {
-        double ew = exp(w);
-        double f  = w * ew - z;
-        double fp = ew * (w + 1.0);
-        if (fabs(fp) < 1e-15) break;
-        double denom = fp - f * (ew * (w + 2.0)) / (2.0 * fp);
-        if (fabs(denom) < 1e-15) break;
-        double w2 = w - f / denom;
-        if (fabs(w2 - w) < 1e-10) { w = w2; break; }
-        w = w2;
-    }
-    return w;
-}
-
-/* Enumerate possible branches of "β – βc = u " using the transformation
+/* Enumerate possible branches of “β – βc = u ” using the transformation
    u·e^u = ξ,  ξ = u·exp(u).  The Lua code returns at most two branches
    (k=0 → principal, k=-1 → secondary). */
 typedef struct { int k; double beta; double score; } Branch;
@@ -296,13 +272,10 @@ static Branch *enumerate_branches(double bc, double b, int *out_cnt)
         double b0 = bc + w0;
         if (b0 > 0) { br[cnt++] = (Branch){0, b0, 0.0}; }
     }
-    /* FIXED: Compute the W_{-1} branch for phase transition jumps */
     if (xi >= -E_INV && xi < 0) {
-        double w1 = lambert_Wm1(xi);
-        if (!isnan(w1)) {
-            double b1 = bc + w1;
-            if (b1 > 0) { br[cnt++] = (Branch){-1, b1, 0.0}; }
-        }
+        /* secondary branch (W_{-1}) – not needed for most instances */
+        double w1 = NAN; /* stub – could implement W_{-1} similarly. */
+        (void)w1;
     }
     *out_cnt = cnt;
     return br;
@@ -442,11 +415,6 @@ typedef struct {
     double *grad_buffer;
     double *heat_mult_buffer;
     int    *sat_counts; /* number of satisfied literals per clause */
-    /* entropy cache for performance */
-    double *entropy_cache;
-    double *entropy_x_cache;
-    /* Cheat Code 5: previous x for incremental sat_counts */
-    double *prev_x;
 } NitroSat;
 
 static void recompute_sat_counts(NitroSat *ns);
@@ -606,9 +574,6 @@ static void nitrosat_free(NitroSat *ns)
     free(ns->grad_buffer);
     free(ns->heat_mult_buffer);
     free(ns->sat_counts);
-    free(ns->entropy_cache);
-    free(ns->entropy_x_cache);
-    free(ns->prev_x);
     free(ns);
 }
 
@@ -745,17 +710,6 @@ static NitroSat *nitrosat_new(Instance *inst, int max_steps, int verbose)
     ns->grad_buffer      = calloc(ns->num_vars + 1, sizeof(double));
     ns->heat_mult_buffer = malloc((ns->num_vars + 1) * sizeof(double));
     ns->sat_counts       = calloc(ns->num_clauses, sizeof(int));
-    /* Cheat Code 1: Initialize entropy cache */
-    ns->entropy_cache    = malloc((ns->num_vars + 1) * sizeof(double));
-    ns->entropy_x_cache = malloc((ns->num_vars + 1) * sizeof(double));
-    for (int i = 1; i <= ns->num_vars; ++i) {
-        ns->entropy_x_cache[i] = -999.0; /* force initial compute */
-    }
-    /* Cheat Code 5: Initialize prev_x for incremental sat_counts */
-    ns->prev_x = malloc((ns->num_vars + 1) * sizeof(double));
-    for (int i = 1; i <= ns->num_vars; ++i) {
-        ns->prev_x[i] = ns->x[i];
-    }
 
     /* pre-calculate heat multipliers */
     for (int i=1;i<=ns->num_vars;++i) {
@@ -772,11 +726,6 @@ static NitroSat *nitrosat_new(Instance *inst, int max_steps, int verbose)
    11. Compute the gradient of the smooth Log‑Barrier objective.
         Returns the gradient vector (allocated) and the current number
         of unsatisfied clauses.
-
-   OPTIMIZATIONS:
-   - Cheat Code 2: Skip clauses with 2+ satisfied literals (negligible gradient)
-   - Cheat Code 4: Unroll k=3 case for 3-SAT (dominant case)
-   - Cheat Code 1: Cache entropy gradient computation
 -------------------------------------------------------------------- */
 #define MAX_CLAUSE_SIZE 256
 static int compute_gradients(NitroSat *ns)
@@ -790,51 +739,22 @@ static int compute_gradients(NitroSat *ns)
     for (int c = 0; c < ns->num_clauses; ++c) {
         int s = ns->cl_offs[c];
         int e = ns->cl_offs[c+1];
-        int k = e - s;
-
-        /* Cheat Code 2: Early exit for well-satisfied clauses */
-        /* If clause has 2+ satisfied literals, barrier gradient is negligible */
-        if (ns->sat_counts[c] >= 2) {
-            continue;
-        }
-
         double violation = 1.0;
         int sat = 0;
 
-        /* Cheat Code 4: Unroll k=3 (dominant case for random 3-SAT) */
-        if (k == 3) {
-            /* Inline unrolled clause evaluation for k=3 */
-            int l0 = ns->cl_flat[s], l1 = ns->cl_flat[s+1], l2 = ns->cl_flat[s+2];
-            double v0 = ns->x[abs(l0)], v1 = ns->x[abs(l1)], v2 = ns->x[abs(l2)];
-
-            double lv0 = (l0 > 0) ? (1.0 - v0) : v0;
-            double lv1 = (l1 > 0) ? (1.0 - v1) : v1;
-            double lv2 = (l2 > 0) ? (1.0 - v2) : v2;
-
-            lv0 = (lv0 < 1e-12) ? 1e-12 : lv0;
-            lv1 = (lv1 < 1e-12) ? 1e-12 : lv1;
-            lv2 = (lv2 < 1e-12) ? 1e-12 : lv2;
-
-            violation = lv0 * lv1 * lv2;
-
-            if ((l0 > 0 && v0 > 0.5) || (l0 < 0 && v0 <= 0.5)) sat++;
-            if ((l1 > 0 && v1 > 0.5) || (l1 < 0 && v1 <= 0.5)) sat++;
-            if ((l2 > 0 && v2 > 0.5) || (l2 < 0 && v2 <= 0.5)) sat++;
-        } else {
-            /* General case for other clause sizes */
-            for (int i = s; i < e; ++i) {
-                int lit = ns->cl_flat[i];
-                int v   = abs(lit);
-                double val = ns->x[v];
-                double lv = (lit > 0) ? (1.0 - val) : val;
-                if (lv < 1e-12) lv = 1e-12;
-                violation *= lv;
-                if ((lit > 0 && val > 0.5) || (lit < 0 && val <= 0.5)) {
-                    sat = 1;
-                }
+        for (int i = s; i < e; ++i) {
+            int lit = ns->cl_flat[i];
+            int v   = abs(lit);
+            double val = ns->x[v];
+            double lv = (lit > 0) ? (1.0 - val) : val;
+            if (lv < 1e-12) lv = 1e-12;
+            violation *= lv;
+            if ((lit > 0 && val > 0.5) || (lit < 0 && val <= 0.5)) {
+                sat = 1;
+                /* If we only need the gradient for unsat clauses, we could skip here.
+                   But NitroSAT needs gradients even for satisfied clauses to maintain smooth barrier. */
             }
         }
-
         if (!sat) ++unsat;
 
         double barrier = 1.0 / (1e-6 + (1.0 - violation));
@@ -842,46 +762,21 @@ static int compute_gradients(NitroSat *ns)
         if (ns->is_hard[c]) w *= 50.0;
         double coef = w * barrier * violation;
 
-        /* Compute gradient contribution */
-        if (k == 3) {
-            /* Unrolled gradient computation for k=3 */
-            int l0 = ns->cl_flat[s], l1 = ns->cl_flat[s+1], l2 = ns->cl_flat[s+2];
-            double v0 = ns->x[abs(l0)], v1 = ns->x[abs(l1)], v2 = ns->x[abs(l2)];
-
-            double lv0 = (l0 > 0) ? (1.0 - v0) : v0;
-            double lv1 = (l1 > 0) ? (1.0 - v1) : v1;
-            double lv2 = (l2 > 0) ? (1.0 - v2) : v2;
-
-            lv0 = (lv0 < 1e-12) ? 1e-12 : lv0;
-            lv1 = (lv1 < 1e-12) ? 1e-12 : lv1;
-            lv2 = (lv2 < 1e-12) ? 1e-12 : lv2;
-
-            grad[abs(l0)] += coef * ((l0 > 0) ? -1.0 : 1.0) / lv0;
-            grad[abs(l1)] += coef * ((l1 > 0) ? -1.0 : 1.0) / lv1;
-            grad[abs(l2)] += coef * ((l2 > 0) ? -1.0 : 1.0) / lv2;
-        } else {
-            for (int i = s; i < e; ++i) {
-                int lit = ns->cl_flat[i];
-                int v   = abs(lit);
-                double val = ns->x[v];
-                double lv = (lit > 0) ? (1.0 - val) : val;
-                if (lv < 1e-12) lv = 1e-12;
-                grad[v] += coef * (((lit > 0) ? -1.0 : 1.0) / lv);
-            }
+        for (int i = s; i < e; ++i) {
+            int lit = ns->cl_flat[i];
+            int v   = abs(lit);
+            double val = ns->x[v];
+            double lv = (lit > 0) ? (1.0 - val) : val;
+            if (lv < 1e-12) lv = 1e-12;
+            grad[v] += coef * (((lit > 0) ? -1.0 : 1.0) / lv);
         }
     }
 
-    /* Cheat Code 1: Heat-kernel smoothing + cached entropy gradient */
-    for (int i=1; i<=n; ++i) {
+    /* heat‑kernel smoothing (pre‑calculated) + entropy regularisation */
+    for (int i=1;i<=n;++i) {
         grad[i] *= ns->heat_mult_buffer[i];
-
-        /* Only recompute log if x changed by more than 0.001 */
-        if (fabs(ns->x[i] - ns->entropy_x_cache[i]) > 0.001) {
-            double v_clamped = clamp(ns->x[i], 1e-9, 1.0-1e-9);
-            ns->entropy_cache[i] = log((1.0 - v_clamped) / v_clamped);
-            ns->entropy_x_cache[i] = ns->x[i];
-        }
-        grad[i] += ns->entropy_weight * ns->entropy_cache[i];
+        double v_clamped = clamp(ns->x[i], 1e-9, 1.0-1e-9);
+        grad[i] += ns->entropy_weight * log((1.0 - v_clamped) / v_clamped);
     }
     return unsat;
 }
@@ -1505,9 +1400,6 @@ static int nitrosat_solve(NitroSat *ns)
 
     for (int i=1;i<=ns->num_vars;++i) best_x[i] = ns->x[i];
 
-    /* Initialize sat_counts before first gradient computation */
-    recompute_sat_counts(ns);
-
     for (int step=1; step<=max_steps; ++step) {
         int unsat = compute_gradients(ns);
         int sat = ns->num_clauses - unsat;
@@ -1555,10 +1447,6 @@ static int nitrosat_solve(NitroSat *ns)
         /* clamp x to [0,1] after optimizer step (matches gh.lua line 992) */
         for (int i = 1; i <= ns->num_vars; ++i)
             ns->x[i] = clamp(ns->x[i], 0.0, 1.0);
-
-        /* Cheat Code 5: Update prev_x for potential incremental sat_counts */
-        for (int i = 1; i <= ns->num_vars; ++i)
-            ns->prev_x[i] = ns->x[i];
 
         /* decimation (soft locking) */
         if (ns->dec_freq && step % ns->dec_freq == 0) {
