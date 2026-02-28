@@ -29,6 +29,8 @@ NitroSAT maps the Boolean satisfiability problem to an energy landscape, using s
 
 ![NitroSAT Mechanism](img/howitworks.png)
 
+Website: https://primal-flow-solver.lovable.app/
+
 ## 📊 Benchmarks & Scaling
 
 NitroSAT demonstrates consistent $O(M)$ scaling and high satisfaction rates across diverse instance categories. For a full breakdown of quantitative results, see [BENCHMARKS.md](BENCHMARKS.md).
