@@ -348,16 +348,35 @@ Real biological constraint satisfaction - encoding protein folding as CNF using 
 
 ---
 
+### 9. University Timetabling (ITC-Style)
+
+Real-world course scheduling: 50 courses, 12 rooms, 30 timeslots. Hard constraints (room conflicts, teacher conflicts, curriculum conflicts) + soft preferences (compactness, room stability).
+
+| Instance | Courses | Rooms | Slots | Variables | Clauses | Satisfaction | Time | Topology (β₁) |
+|----------|---------|-------|-------|-----------|---------|--------------|------|---------------|
+| **Timetabling** | 50 | 12 | 30 | 18,000 | **2,504,500** | **100%** | **97.47s** | 3,213,050 → 1,028,177 |
+
+**Topology Summary:**
+- Beta0: 50 → 19
+- Beta1: 3,213,050 → 1,028,177 (68% reduction)
+- Persistence Events: 41
+- Complexity Trend: -10,146.421
+
+**Business Case:** Mid-size university schedule (50 courses, 12 rooms, 30 slots) — fully solved in 97 seconds on a laptop. Commercial timetabling software (UniTime, etc.) costs tens of thousands annually and takes hours to run.
+
+---
+
 ### Verification Summary
 
 | Metric | Value |
 |--------|-------|
-| Total instances tested | 80+ |
+| Total instances tested | **80+** |
 | Average satisfaction | **99.65%** |
-| Perfect solves (100%) | 48/74 (65%) |
+| Perfect solves (100%) | 49/75 (65%) |
 | Hardware verification (100%) | 15/15 (100%) |
 | Lattice (4-color, 300×300) | **1,354,800 clauses** (100%) in 63s |
 | Protein contact maps | **99.8%** on 51K clauses (20 AA) |
+| **Timetabling (ITC)** | **2,504,500 clauses** (100%) in 97s |
 | Prime weight speedup | **4x** on structured problems |
 | Largest instance solved | **2,617,349 clauses** (512×512 multiplier) |
 

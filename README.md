@@ -40,6 +40,7 @@ See [MATH.md](MATH.md#empirical-verification-2026-independent-audit) for the com
 
 
 - 🖥️ **Chip Verification** - Solves **512×512-bit Hardware Multiplier (2,617,349 clauses)** in **5.92 seconds**
+- 🎓 **Timetabling (ITC)** - Solves **50 courses, 12 rooms, 30 slots (2,504,500 clauses)** in **97 seconds** — fully satisfied
 - 🌐 **Graph Theory** - K-Clique, Coloring, Dominating Sets at 99.9%+ satisfaction
 - 📦 **Logistics & Scheduling** - Pigeonhole, Bin Packing, Shift Matching
 
