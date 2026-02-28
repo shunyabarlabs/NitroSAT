@@ -1,4 +1,4 @@
-# Constraint Satisfaction as Langevin Flow on the Adelic Manifold: Prime Weights, Spectral Gaps, and a Connection to the Riemann Hypothesis
+# Constraint Satisfaction as Langevin Flow on the Prime-Weighted Hyperbolic Manifold: Prime Weights, Spectral Gaps, and a Connection to the Riemann Hypothesis
 
 **Author**: Sethurathienam Iyer ([ORCID: 0009-0008-5446-2856](https://orcid.org/0009-0008-5446-2856))  
 **Date**: 28th Feb 2026  
@@ -6,7 +6,7 @@
 
 What if the reason NP-hard problems are hard is the same reason primes are irregular?
 
-This document presents a formal mathematical framework in which constraint satisfaction, prime number distribution, and the Chebyshev error competition are not analogies — they are the same object viewed from different angles. A SAT solver becomes a gradient flow on a Riemannian manifold. Clause weights become prime masses on the boundary. And the stability of the solver at scale becomes a physical instantiation of the tradeoff between geometric spectral decay and the asymptotic distribution of primes.
+This document presents a formal mathematical framework in which constraint satisfaction, prime number distribution, and the Chebyshev error competition are not analogies — they share a common mathematical structure under the assumptions of this framework. A SAT solver becomes a gradient flow on a Riemannian manifold. Clause weights become prime masses on the boundary. And the stability of the solver at scale becomes a physical instantiation of the tradeoff between geometric spectral decay and the asymptotic distribution of primes.
 
 ### 1. The Geometric Space: Inverted Poincaré Disk ($\mathbb{D}^*$)
 ![Figure 1: The Inverted Poincaré Disk](img/math_disk.png)
@@ -49,8 +49,9 @@ The stability of the gradient flow is determined by a scaling competition betwee
 1.  **Geometric Weakening:** The rate at which the graph's spectral gap closes, $\lambda_2(G_K) \sim K^{-\gamma}$.
 2.  **Prime Fluctuation Decay:** The rate at which relative prime variance vanishes, $\Phi(K) \sim K^{\sigma-1}$.
 
-For the solver to remain in the strongly convex region $\mathcal{D}_\delta$, the prime noise must decay *faster* than the structural rigidity weakens. This requires the asymptotic exponent condition:
+For the solver to remain in the strongly convex region $\mathcal{D}_\delta$, the prime noise must decay *faster* than the structural rigidity weakens. Under the linear perturbation coupling ansatz, stability requires the asymptotic exponent condition:
 $$ 1 - \sigma > \gamma $$
+It should be noted that entropy and nonlinear damping terms may shift this threshold and are not fully analyzed here.
 
 **Conjecture (Asymptotic Lock):** NitroSAT's stability on critical mesh-like geometries (where the spectral gap closes such that $\gamma \to 1/2$) implies that the prime error term must satisfy $\sigma < 1 - \gamma$. As the geometry approaches the critical dimension $\gamma \to 1/2$, preserving stability strictly requires $\sigma \to 1/2$ (the Riemann Hypothesis).
 
@@ -307,7 +308,7 @@ Consider the problem: *"Given an integer $n > 1$, find a non-trivial factorizati
 
 This is a **constraint satisfaction problem**. A composite number $n$ *satisfies* the constraint — you can find such $a, b$. A prime $p$ **cannot** — it is structurally unsatisfiable. No assignment of $a, b$ works. The prime is the **UNSAT core** of the factoring CSP.
 
-This is not a metaphor. The Fundamental Theorem of Arithmetic says every integer has a unique factorization into primes. In SAT language: **every satisfiable arithmetic instance decomposes uniquely into irreducible UNSAT atoms (primes)**. The primes are exactly the clauses that *cannot* be further reduced.
+This correspondence is conceptual rather than categorical — unique factorization and SAT clause irreducibility are structurally analogous but not formally equivalent. The Fundamental Theorem of Arithmetic says every integer has a unique factorization into primes. In SAT language: **every satisfiable arithmetic instance decomposes uniquely into irreducible UNSAT atoms (primes)**. The primes are exactly the clauses that *cannot* be further reduced.
 
 #### Why Their Distribution Controls Everything
 
@@ -324,7 +325,7 @@ The critical question becomes: **are these UNSAT atoms distributed evenly enough
 There is a deeper reason why prime weights are uniquely suited for constraint weighting. By the Fundamental Theorem of Arithmetic, **primes are multiplicatively independent** — no prime can be expressed as a product of other primes. This means:
 
 - **No resonance cancellation**: Two differently-weighted clauses can never accidentally produce destructive interference in the gradient, because their weights share no common factors.
-- **Unique spectral identity**: The product $\prod_{c \in S} p_c$ for any subset of clauses $S$ is unique. This gives each subproblem a distinct "fingerprint" in the adelic (prime-by-prime) topology.
+- **Unique spectral identity**: The product $\prod_{c \in S} p_c$ for any subset of clauses $S$ is unique. This gives each subproblem a distinct "fingerprint" in the Archimedean (prime-by-prime) topology.
 - **Gauge invariance follows naturally**: Since the weights are determined by the prime sequence (a universal invariant), they depend only on clause *index*, not on variable labeling. Relabeling variables permutes clauses but preserves the set of prime weights — hence 0.0000% permutation variance.
 
 #### The Punchline
@@ -341,7 +342,7 @@ NitroSAT does not compute a proof of the Riemann Hypothesis; instead, it provide
 
 The preceding sections establish a chain of dynamical relationships:
 
-1. **Section 4** defines the stability boundary: for a graph where the spectral gap closes as $K^{-\gamma}$, convexity relies on the prime noise decaying faster: $1 - \sigma > \gamma$.
+1. **Section 4** defines the stability boundary: under the linear perturbation coupling ansatz, for a graph where the spectral gap closes as $K^{-\gamma}$, convexity relies on the prime noise decaying faster: $1 - \sigma > \gamma$.
 2. **Section 6** proves the strong convexity conditions required for stable exponential convergence $e^{-\mu t}$.
 3. **Section 8** confirms that structured instances (with varying $\gamma$ geometric decay rates) behave exactly as the convexity theorem predicts.
 

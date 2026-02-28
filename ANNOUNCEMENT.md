@@ -1,8 +1,8 @@
 # Open Sourcing NitroSAT: The Thermodynamics of NP-Complete Problems
 
 
-![Adelic Manifold](img/announcement_1.png)
-*Figure 1: Visualization of the Adelic Manifold and Spectral Heat Kernels.*
+![Prime-Weighted Hyperbolic Manifold](img/announcement_1.png)
+*Figure 1: Visualization of the Prime-Weighted Hyperbolic Manifold and Spectral Heat Kernels.*
 
 Imagine submitting a constraint problem so large, so tangled with dependencies and resource conflicts, that traditional solvers simply give up.
 
