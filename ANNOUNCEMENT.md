@@ -16,7 +16,7 @@ That is the reality that **NitroSAT** delivers.
 
 **Stop searching. Start evolving.**
 
-Today, I am open-sourcing **NitroSAT**, the physics-informed MaxSAT engine that powers ShunyaBar Labs. NitroSAT represents a fundamental departure from traditional CSP/SAT theory. We have abandoned the search tree entirely in favor of a **Langevin Flow** on a physical manifold.
+Today, I am open-sourcing **NitroSAT**, the physics-informed MaxSAT engine that powers ShunyaBar Labs. NitroSAT represents a fundamental departure from traditional CSP/SAT theory. We have abandoned the search tree entirely in favor of a **continuous physics-based simulation**.
 
 
 ![Phase Transition](img/announcement_2.png)
@@ -27,7 +27,7 @@ Today, I am open-sourcing **NitroSAT**, the physics-informed MaxSAT engine that 
 
 Because NitroSAT isn't just a solver anymore. It has become a **mathematical instrument**.
 
-When I saw the benchmarks hitting **$O(N)$ linear scaling** on problems that mathematically "should" scale exponentially, I realized this needed to be audited by the community. When I saw the solver achieving **0.0000% permutation variance**;being completely blind to how you label your variables because it only sees the spectral identity of the problem, I knew we have something special here which demands scrutiny from the larger community.
+When I saw the benchmarks hitting **$O(N)$ linear scaling** on problems that mathematically "should" scale exponentially, I realized this needed to be audited by the community. When I saw the solver achieving **0.0000% permutation variance**; being completely blind to how you label your variables because it only sees the underlying structure of the problem, I knew we have something special here which demands scrutiny from the larger community.
 
 
 ## The Mind-Blowing Realities of NitroSAT
@@ -35,13 +35,13 @@ When I saw the benchmarks hitting **$O(N)$ linear scaling** on problems that mat
 ### 1. $O(N)$ Scaling is the New Reality
 NitroSAT solves a **million-clause** grid coloring problem in ~12 seconds. It doesn't branch. It maintains a flat state array $x \in [0, 1]^V$ and updates it simultaneously across all variables using a highly optimized Sparse CSR structure. The physics scale linearly, even when the logic is NP-hard.
 
-### 2. Zero Permutation Variance (Gauge Invariance)
+### 2. Zero Permutation Variance (Label Independence)
 In a standard solver, shuffling your CNF file can change the runtime from 1ms to 1 hour. In NitroSAT, it changes **nothing**. 
-Each clause is weighted by a unique prime number;a sequence of universal invariants. This makes the solver **Gauge Invariant**. It doesn't care about your variable names; it only cares about the **Spectral Gap** of the constraint hypergraph. It is the first solver that treats a SAT instance as a deterministic physical law.
+Each clause is weighted by a unique prime number. This makes the solver **Label Independent**. It doesn't care about your variable names; it only cares about the core shape of the problem. It is the first solver that treats a SAT instance as a deterministic physical law.
 
-### 3. The Lambert W Phase-Transition Jump
-Hidden inside the **BAHA (Branch-Aware Holonomy Annealing)** module is a jump mechanism powered by the **Lambert W function**. 
-Optimization often hits "physics walls" where the landscape becomes non-convex. Most solvers stall there. NitroSAT uses the principal and lower branches of the Lambert W function to detect these thermodynamic phase boundaries and **teleport** the system into new stable energy basins. It doesn't just climb hills; it tunnels through them.
+### 3. Smart Escapes from Local Minima
+Hidden inside the **BAHA (Branch-Aware Holonomy Annealing)** module is an advanced jump mechanism. 
+Optimization often hits walls where progress stalls. Most solvers get stuck there. NitroSAT detects these boundaries and **teleports** the system into new stable energy basins. It doesn't just climb hills; it tunnels through them.
 
 ## From "Search" to "Physics"
 
@@ -53,10 +53,10 @@ When problems are "structured" ; when they exhibit deep symmetries, tight variab
 
 ### Core Modules
 
-1.  **Heat Kernel Gradient Smoothing**: Applying degree-weighted diffusion operators to smooth the energy landscape, preventing the solver from getting stuck in shallow local valleys.
-2.  **Persistent Homology**: Utilizing Betti numbers ($\beta_1$) to detect "holes" or loops in the problem structure (e.g., parity chains in XOR-SAT) and breaking them explicitly.
-3.  **Zeta-Guided Resonance Injection**: Injecting "prime harmonics" and golden-ratio perturbations to resonate with the underlying structure, helping the solver tunnel through energy barriers.
-4.  **Branch-Aware Holonomy Annealing (BAHA)**: Using the Lambert-W function to detect thermodynamic phase boundaries and calculating "jumps" to new energy basins.
+1.  **Continuous Heat Diffusion**: Smoothing the energy landscape, preventing the solver from getting stuck in shallow local valleys.
+2.  **Topology Tracking**: Detecting "holes" or loops in the problem structure (e.g., parity chains in XOR-SAT) and breaking them explicitly.
+3.  **Prime Resonance**: Injecting prime-frequency harmonies to shake the system and help the solver tunnel through energy barriers.
+4.  **Phase-Transition Jumps (BAHA)**: Detecting when the system hits a wall and calculating jumps to new energy basins.
 
 
 ![Heat Kernel Diffusion](img/announcement_3.png)
@@ -65,9 +65,9 @@ When problems are "structured" ; when they exhibit deep symmetries, tight variab
 
 ### The Math is the Code
 Inside `nitrosat.c`, you won't find complex branching logic or massive heuristic tables. You will find:
-- **Heat Kernel Diffusion**: Smoothing the manifold via degree-weighted diffusion.
-- **Zeta Perturbations**: Shaking the manifold with prime-frequency harmonics to prevent local minima.
-- **Adelic Weights**: Ensuring every "contradiction atom" has a unique mass derived from the Riemann Zeta function.
+- **Heat Diffusion**: Smoothing out the problem landscape.
+- **Resonance Injections**: Shaking the system to prevent it from getting trapped.
+- **Unique Prime Weights**: Ensuring every logical constraint has a unique, mathematically pure mass.
 
 ![Metric Geometry](img/math_disk.png)
 *Figure 4: The Inverted Poincaré Disk;where constraints live on the boundary of the infinite vacuum.*
@@ -120,11 +120,12 @@ local success, steps, sat_count = solver:solve()
 
 ## An Invitation to Audit
 
-Optimization is filled with black-box solvers. I am releasing this under the **Apache 2.0 license** because the implications for Number Theory and complexity analysis are too significant to keep behind closed doors. Whether you are a software engineer looking for $O(N)$ optimization or a mathematician interested in the **Riemann Hypothesis connection**, the code is now yours.
+Optimization is filled with black-box solvers. I am releasing this under the **Apache 2.0 license** because the implications for complex systems and physics-based computation are too significant to keep behind closed doors. Whether you are an engineer looking for scalable optimization or someone interested in entirely new ways to solve logic problems, the code is now yours.
 
-![Zeta Resonance](img/math_zeta.png)
-*Figure 5: Spectral perturbations derived from the Riemann Zeta zeros.*
+![Prime Resonance](img/math_zeta.png)
+*Figure 5: Spectral perturbations derived from prime numbers.*
 
+> *A note to the community: NitroSAT does not claim to magically bypass NP-hardness. Rather, it introduces a physical framework where prime numbers and thermodynamics guide the solver, offering a new empirical way to study problem difficulty.*
 
 ---
 **Sethu Iyer**  
@@ -143,7 +144,7 @@ Founder, ShunyaBar Labs
 
 # NitroSAT vs Navokoj: What Separates Them
 
-NitroSAT is the **open-source mathematical core**. Navokoj is the **production intelligence platform** built on top of it. They share the same physics ; Langevin flow on the Adelic Manifold ; but Navokoj adds everything needed to turn a research engine into industrial infrastructure.
+NitroSAT is the **open-source physics core**. Navokoj is the **production intelligence platform** built on top of it. They share the same underlying logic, but Navokoj adds everything needed to turn a research engine into industrial infrastructure.
 
 ---
 
@@ -244,15 +245,15 @@ Things NitroSAT doesn't worry about but Navokoj must:
 
 ## What They Share
 
-Both NitroSAT and Navokoj share the **same mathematical foundation**:
+Both NitroSAT and Navokoj share the **same core foundation**:
 
-- **Langevin gradient flow** on the Adelic Manifold
-- **Prime-weighted clauses** ($W(p) = 1/(1 + \ln p)$)
-- **Heat kernel diffusion** for gradient smoothing
+- **Continuous physics-based solver**
+- **Prime-weighted clauses**
+- **Heat diffusion** for landscape smoothing
 - **Entropy regularization** for symmetry breaking
-- **Persistent homology** (Betti numbers) for topological repair
-- **BAHA** (Lambert W phase-transition jumps)
-- **Gauge invariance** (0.0000% permutation variance)
+- **Topology tracking** for structural repair
+- **Smart phase-transition jumps (BAHA)**
+- **Label Independence** (0.0000% permutation variance)
 
 The core physics is identical. Navokoj adds the engineering layer: GPU parallelism, multi-engine routing, diagnostic intelligence, domain-specific APIs, and production guarantees.
 
