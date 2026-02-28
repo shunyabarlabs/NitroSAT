@@ -310,8 +310,9 @@ Production API testing with DEFEKT diagnostics and multi-engine comparison.
 | 64×64 Multiplier | Wallace Tree | 12,544 | 40,453 | **100%** | 0.10s |
 | **128×128 Multiplier** | **Massive Wallace Tree** | **49,664** | **162,821** | **100%** | **0.37s** |
 | **256×256 Multiplier** | **Ultra Massive** | **197,632** | **653,317** | **100%** | **1.40s** |
+| **512×512 Multiplier** | **Ultra Massive** | **788,480** | **2,617,349** | **100%** | **5.92s** |
 
-**Note:** Verifying 653,317 clauses of tightly-coupled integer multiplication logic in 1.4 seconds is the most commercially compelling result.
+**Note:** Verifying 2,617,349 clauses of tightly-coupled integer multiplication logic in 5.92 seconds is the most commercially compelling result.
 
 ---
 
@@ -324,7 +325,7 @@ Production API testing with DEFEKT diagnostics and multi-engine comparison.
 | Perfect solves (100%) | 45/70 (64%) |
 | Hardware verification (100%) | 15/15 (100%) |
 | Prime weight speedup | **4x** on structured problems |
-| Largest instance solved | **653,317 clauses** (256×256 multiplier) |
+| Largest instance solved | **2,617,349 clauses** (512×512 multiplier) |
 
 **Hardware:** AMD Ryzen 5 5600H @ 4.280GHz
 

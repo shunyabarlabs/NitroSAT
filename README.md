@@ -38,7 +38,7 @@ See [MATH.md](MATH.md#empirical-verification-2026-independent-audit) for the com
 
 Any NP-Complete problem translatable to CNF is solvable in linear time. Proven domains include:
 
-- 🖥️ **Chip Verification** - Solves 256×256-bit Hardware Multiplier (653,317 clauses) in **1.40 seconds**
+- 🖥️ **Chip Verification** - Solves **512×512-bit Hardware Multiplier (2,617,349 clauses)** in **5.92 seconds**
 - 🌐 **Graph Theory** - K-Clique, Coloring, Dominating Sets at 99.9%+ satisfaction
 - 📦 **Logistics & Scheduling** - Pigeonhole, Bin Packing, Shift Matching
 
