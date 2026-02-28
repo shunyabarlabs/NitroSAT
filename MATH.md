@@ -283,7 +283,45 @@ NitroSAT works because **structured instances have large spectral gaps and algeb
 
 ---
 
-### 9. The Empirical Implication: NitroSAT as a Physical Instrument for RH
+### 9. Why Primes Are the Atoms of Unsatisfiability
+
+The connection between the Riemann Hypothesis and constraint satisfaction is not an analogy — it is structural. To see why, observe that primes are the **irreducible unsatisfiable cores of arithmetic**.
+
+#### The Divisibility Constraint
+
+Consider the problem: *"Given an integer $n > 1$, find a non-trivial factorization $n = a \cdot b$ with $1 < a, b < n$."*
+
+This is a **constraint satisfaction problem**. A composite number $n$ *satisfies* the constraint — you can find such $a, b$. A prime $p$ **cannot** — it is structurally unsatisfiable. No assignment of $a, b$ works. The prime is the **UNSAT core** of the factoring CSP.
+
+This is not a metaphor. The Fundamental Theorem of Arithmetic says every integer has a unique factorization into primes. In SAT language: **every satisfiable arithmetic instance decomposes uniquely into irreducible UNSAT atoms (primes)**. The primes are exactly the clauses that *cannot* be further reduced.
+
+#### Why Their Distribution Controls Everything
+
+If you weight each constraint in a SAT instance by a unique prime $p_c$ with weight $W(p_c) = 1/(1 + \ln p_c)$, you are assigning each constraint a mass proportional to its **irreducibility**. Small primes (low-order UNSAT atoms) exert strong force; large primes (high-order atoms) exert weaker, more diffuse force.
+
+The critical question becomes: **are these UNSAT atoms distributed evenly enough to keep the gradient flow balanced?**
+
+- If primes are uniformly spread across arithmetic progressions (which RH guarantees with error $O(\sqrt{x} \ln^2 x)$), then the weighted clause pressures are balanced — no region of the constraint hypergraph accumulates disproportionate force, and the gradient flow stays in the convex regime.
+
+- If primes cluster or thin out irregularly (which would happen if a zero existed off the critical line with $\sigma > 1/2$), then some clause groups would carry anomalously high or low mass. The gradient flow would experience **irrecoverable imbalances** — regions of the hypergraph where too many "strong UNSAT atoms" push in one direction while other regions are starved of signal.
+
+#### The Multiplicative Independence Guarantee
+
+There is a deeper reason why prime weights are uniquely suited for constraint weighting. By the Fundamental Theorem of Arithmetic, **primes are multiplicatively independent** — no prime can be expressed as a product of other primes. This means:
+
+- **No resonance cancellation**: Two differently-weighted clauses can never accidentally produce destructive interference in the gradient, because their weights share no common factors.
+- **Unique spectral identity**: The product $\prod_{c \in S} p_c$ for any subset of clauses $S$ is unique. This gives each subproblem a distinct "fingerprint" in the adelic (prime-by-prime) topology.
+- **Gauge invariance follows naturally**: Since the weights are determined by the prime sequence (a universal invariant), they depend only on clause *index*, not on variable labeling. Relabeling variables permutes clauses but preserves the set of prime weights — hence 0.0000% permutation variance.
+
+#### The Punchline
+
+Primes are to arithmetic what UNSAT cores are to constraint satisfaction: the irreducible obstructions that cannot be decomposed further. The Riemann Hypothesis asserts that these obstructions are distributed as *regularly as possible* — with fluctuations bounded by $O(\sqrt{x})$. NitroSAT's prime weighting embeds this regularity directly into the gradient flow, and the solver's stability at scale is a physical manifestation of that regularity holding.
+
+**If primes were irregular (RH false), the solver would break. It doesn't.**
+
+---
+
+### 10. The Empirical Implication: NitroSAT as a Physical Instrument for RH
 
 The preceding sections establish a chain of equivalences:
 
