@@ -10,7 +10,7 @@ You have likely been there. You run a shift scheduling optimization for 1,000 nu
 
 Now, imagine a different reality.
 
-Imagine submitting that same massive, messy problem and getting a near-perfect assignment back in milliseconds. Imagine the solver not only providing the result but also telling you exactly why it couldn't reach 100% — whether it's a structural parity contradiction in your logic or a genuine resource conflict that requires human intervention.
+Imagine submitting that same massive, messy problem and getting a near-perfect assignment back in milliseconds. Imagine the solver not only providing the result but also telling you exactly why it couldn't reach 100% ; whether it's a structural parity contradiction in your logic or a genuine resource conflict that requires human intervention.
 
 That is the reality that **NitroSAT** delivers.
 
@@ -27,7 +27,7 @@ Today, I am open-sourcing **NitroSAT**, the physics-informed MaxSAT engine that 
 
 Because NitroSAT isn't just a solver anymore. It has become a **mathematical instrument**.
 
-When I saw the benchmarks hitting **$O(N)$ linear scaling** on problems that mathematically "should" scale exponentially, I realized this needed to be audited by the community. When I saw the solver achieving **0.0000% permutation variance**—being completely blind to how you label your variables because it only sees the spectral identity of the problem, I knew we have something special here which demands scrutiny from the larger community.
+When I saw the benchmarks hitting **$O(N)$ linear scaling** on problems that mathematically "should" scale exponentially, I realized this needed to be audited by the community. When I saw the solver achieving **0.0000% permutation variance**;being completely blind to how you label your variables because it only sees the spectral identity of the problem, I knew we have something special here which demands scrutiny from the larger community.
 
 
 ## The Mind-Blowing Realities of NitroSAT
@@ -37,7 +37,7 @@ NitroSAT solves a **million-clause** grid coloring problem in ~12 seconds. It do
 
 ### 2. Zero Permutation Variance (Gauge Invariance)
 In a standard solver, shuffling your CNF file can change the runtime from 1ms to 1 hour. In NitroSAT, it changes **nothing**. 
-Each clause is weighted by a unique prime number—a sequence of universal invariants. This makes the solver **Gauge Invariant**. It doesn't care about your variable names; it only cares about the **Spectral Gap** of the constraint hypergraph. It is the first solver that treats a SAT instance as a deterministic physical law.
+Each clause is weighted by a unique prime number;a sequence of universal invariants. This makes the solver **Gauge Invariant**. It doesn't care about your variable names; it only cares about the **Spectral Gap** of the constraint hypergraph. It is the first solver that treats a SAT instance as a deterministic physical law.
 
 ### 3. The Lambert W Phase-Transition Jump
 Hidden inside the **BAHA (Branch-Aware Holonomy Annealing)** module is a jump mechanism powered by the **Lambert W function**. 
@@ -49,7 +49,7 @@ For decades, the dominant approach to solving SAT (Boolean Satisfiability) and M
 
 This approach works well for many problems, but it has a fatal flaw: **Structure**.
 
-When problems are "structured" — when they exhibit deep symmetries, tight variable couplings, or phase-transition boundaries — search trees explode. NitroSAT evolves a solution by treating the constraint hypergraph as a physical system governed by energy, heat, and topology.
+When problems are "structured" ; when they exhibit deep symmetries, tight variable couplings, or phase-transition boundaries ; search trees explode. NitroSAT evolves a solution by treating the constraint hypergraph as a physical system governed by energy, heat, and topology.
 
 ### Core Modules
 
@@ -70,7 +70,7 @@ Inside `nitrosat.c`, you won't find complex branching logic or massive heuristic
 - **Adelic Weights**: Ensuring every "contradiction atom" has a unique mass derived from the Riemann Zeta function.
 
 ![Metric Geometry](img/math_disk.png)
-*Figure 4: The Inverted Poincaré Disk—where constraints live on the boundary of the infinite vacuum.*
+*Figure 4: The Inverted Poincaré Disk;where constraints live on the boundary of the infinite vacuum.*
 
 ## The Zero-Tuning Approach
 
@@ -137,7 +137,137 @@ Founder, ShunyaBar Labs
 
 **Paper**: [codeberg.org/sethuiyer/NitroSAT/paper.pdf](https://codeberg.org/sethuiyer/NitroSAT/src/branch/master/nitrosat_paper.pdf)
 
+**Navokoj**: [navokoj.shunyabar.foo](https://navokoj.shunyabar.foo/)
+
 ---
+
+# NitroSAT vs Navokoj: What Separates Them
+
+NitroSAT is the **open-source mathematical core**. Navokoj is the **production intelligence platform** built on top of it. They share the same physics ; Langevin flow on the Adelic Manifold ; but Navokoj adds everything needed to turn a research engine into industrial infrastructure.
+
+---
+
+## The One-Line Summary
+
+> **NitroSAT** is the equation. **Navokoj** is the machine that runs it at scale, tells you *why* it failed, and charges you per solve.
+
+---
+
+## Architecture Comparison
+
+| Dimension | NitroSAT (Open Source) | Navokoj (Production API) |
+|---|---|---|
+| **Language** | Pure C (`nitrosat.c`) + Lua wrapper | Python + C + CUDA backend |
+| **Interface** | CLI / Lua scripting | REST API (`/v1/solve`, `/v1/diagnose`, `/v1/schedule`) |
+| **Input Format** | DIMACS CNF files | CNF, Boolean expressions, XOR+CNF hybrid, Q-SAT, scheduling DSL |
+| **Output** | Assignment + satisfaction % | Assignment + satisfaction % + **violation diagnostics** + **variable blame** + billing |
+| **Hardware** | Single CPU core | CPU → L4 GPU → H100 GPU (tiered) |
+| **Scale Limit** | ~1M clauses (LuaJIT 2GB RAM) | 8M+ clauses (H100), 1M+ variables |
+| **Concurrency** | Single-threaded | 2-4 concurrent NP-complete solves per tier |
+
+---
+
+## What Navokoj Adds Beyond NitroSAT
+
+### 1. Diagnostic Intelligence (DEFEKT)
+
+NitroSAT tells you *what* it solved. Navokoj tells you *whether you should even try*, *why it failed*, and *whose fault it is*.
+
+- **Pre-solve diagnostics** (`/v1/diagnose`): Predicts solvability score (0–100) before running the solver ; avoids wasting compute on likely-UNSAT instances.
+- **Violation summary**: Identifies which constraints were violated and *why*.
+- **Variable blame attribution**: Pinpoints the specific variables causing conflicts ; turns "UNSAT" from a dead end into a debugging tool.
+
+NitroSAT returns `Unsatisfied: 3`. Navokoj returns `Variable 1 appears in 3 violated clauses; constraint [-1, -2] conflicts with clauses [1] and [2]`.
+
+### 2. ⚡ Multi-Engine Selection
+
+NitroSAT has one engine (the Langevin flow with BAHA). Navokoj exposes **four engines** optimized for different regimes:
+
+| Engine | Role | Sweet Spot |
+|---|---|---|
+| **Nano** | Ultra-fast, real-time | Massive scale (N=100k+), sub-100ms |
+| **Mini** | Balanced general-purpose | Medium problems, good quality |
+| **Pro** | Deep optimization | Complex problems, 100% target |
+| **Q-SAT** | N-ary satisfaction | Multi-valued logic (Sudoku, graph coloring with k states) |
+
+Plus `auto` routing that selects the best engine based on problem structure.
+
+### 3. 🔧 Production Features NitroSAT Doesn't Have
+
+| Feature | Details |
+|---|---|
+| **Anytime algorithm** | Returns best-so-far on timeout ; never returns empty |
+| **Timeout budget control** | `timeout_budget_seconds` for real-time SLAs |
+| **Batch solving** | Multiple problems in one API call (30+ solves/second) |
+| **Constraint weighting** | Soft vs hard constraints with priority weights |
+| **Boolean expression parser** | Natural syntax (`a -> b`, `x <-> y`, `!z`) ; no CNF conversion needed |
+| **XOR-native hybrid mode** | First-class XOR constraints without CNF explosion |
+| **QBF / PSPACE support** | Quantified Boolean Formulas (`forall x exists y`) |
+| **Schedule API** | Domain-specific endpoint for workforce scheduling |
+| **Billing per solve** | Pay-per-use: $0.01/min (CPU) to $1/min (H100) |
+
+### 4. GPU Acceleration
+
+NitroSAT runs on a single CPU core. Navokoj deploys on:
+
+- **Standard (CPU)**: 5k vars, 35k clauses ; free tier
+- **L4 GPU**: 100k vars, 300k clauses ; $0.25 + $0.10/min
+- **H100 GPU**: 1M vars, 8M clauses ; $1.50 + $1.00/min, ensemble of 500 parallel jobs
+
+The H100 tier is what produces the headline results: R(5,5,5) N=52 in 17 minutes, R(6,6) N=35 in 24 minutes, Kubernetes 2M-clause placement at 100%.
+
+### 5. Industrial Track Record
+
+NitroSAT's benchmarks are research-grade (358 instances, ~300 variables typical). Navokoj has been tested on production workloads:
+
+| Benchmark | NitroSAT | Navokoj |
+|---|---|---|
+| **SAT 2024 Industrial Track** | ; | 92.57% (4,199 problems) |
+| **Ramsey R(5,5,5) N=52** | ; | 100% (7.8M clauses, 17 min) |
+| **K8s Placement (2M clauses)** | ; | 100% (17 min, ~$2) |
+| **129-SAT (1M clauses)** | ; | 100% (9-10 min) |
+| **Random 3-SAT 1M vars** | ; | 92.15% (4.26M clauses) |
+| **PSPACE (Sokoban, Pebbling)** | ; | 21/21 tests passed |
+| **Reversible Pebbling 2.4M clauses** | ; | 97.55% |
+
+### 6. Production Hardening
+
+Things NitroSAT doesn't worry about but Navokoj must:
+
+- **30-minute timeout guarantee** with best partial result on timeout
+- **Request tracing** and billing infrastructure
+- **Graceful degradation** ; never returns empty, always returns best-effort
+- **Rate limiting** and concurrency control (NP-complete solves are expensive)
+- **Enterprise SLA roadmap** ($100 base + $10/hour for dedicated 3-5 hour runs)
+
+---
+
+## What They Share
+
+Both NitroSAT and Navokoj share the **same mathematical foundation**:
+
+- **Langevin gradient flow** on the Adelic Manifold
+- **Prime-weighted clauses** ($W(p) = 1/(1 + \ln p)$)
+- **Heat kernel diffusion** for gradient smoothing
+- **Entropy regularization** for symmetry breaking
+- **Persistent homology** (Betti numbers) for topological repair
+- **BAHA** (Lambert W phase-transition jumps)
+- **Gauge invariance** (0.0000% permutation variance)
+
+The core physics is identical. Navokoj adds the engineering layer: GPU parallelism, multi-engine routing, diagnostic intelligence, domain-specific APIs, and production guarantees.
+
+---
+
+## The Business Model
+
+| | NitroSAT | Navokoj |
+|---|---|---|
+| **License** | Apache 2.0 (open) | Commercial API |
+| **Pricing** | Free | Pay-per-solve ($0.01 – $1/min) |
+| **Target** | Researchers, mathematicians, auditors | Engineers, enterprises, production systems |
+| **Why it exists** | Audit the math, advance the theory | Run the math at scale, make money |
+
+**NitroSAT is how you prove the physics works. Navokoj is how you ship it.**
 
 
 
