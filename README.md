@@ -187,31 +187,43 @@ Sponsor link: https://github.com/sponsors/sethuiyer/
 You can find the CNFs used to test NitroSAT AND the performance of the enterprise edition [here](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024/blob/main/tests_cnf.zip) and [here](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024)
 
 ---
+# Research Background
 
+NitroSAT is the outcome of 8 years of research into millennium prize problems, beginning in 2018. The work is unconventional, deeply interdisciplinary, and grounded in empirical results rather than theoretical claims alone.
 
-## Notes
+The core ideas — multiplicative calculus, spectral phase transitions, quantum vacuum dynamics, and thermodynamic optimization — developed gradually across the following publications:
 
-NitroSAT is an outcome after  8 years of relentless research in millenium prize problems since 2018, a very unconventional line of thought, pretty interdisciplinary and with real emperical results and speedups. You can find the research which led to this here -
+## Publications & Research
 
-Multiplicative Calculus for Hardness Detection https://zenodo.org/records/18373732
-ShunyaBar: Spectral–Arithmetic Phase Transitions https://zenodo.org/records/18214172
-Solving SAT with Quantum Vacuum Dynamics https://zenodo.org/records/17394165
-Spectral-Multiplicative Optimization Framework https://zenodo.org/records/17596089
-Navokoj max-SAT solver performance - https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024
-Multiplicative physics informed neural networks - https://sethuiyer.github.io/multiplicative-pinn-framework/
-Branch aware exact basin hopping - https://sethuiyer.github.io/baha/
-Solving max-SAT using Quantum Vacuum Dynamics - https://sethuiyer.github.io/casimir-sat-solver/
-Optimizer for NP-Hard Landscapes using summation of damped exponentials - https://research.shunyabar.foo/posts/self-stabilizing-optimizer.html
-Fingerprints of Complexity - https://research.shunyabar.foo/posts/fingerprint-of-complexity.html
-Surprise Link - https://codeberg.org/sethuiyer/NitroSAT
-Traveling Salesman problem using Thermodynamics - https://research.shunyabar.foo/posts/tsp-mechanism.html
-Spectral Multiplicative Optimization Framework - https://theory.shunyabar.foo/
-NitroSAT: A Physics-Informed MaxSAT Solver Using Heat Kernel Diffusion, Persistent Homology, and Branch-Aware Holonomy Annealing : https://zenodo.org/records/18753235
-A general-purpose engine for finding coherent structure inside astronomically large discrete spaces - has max-SAT, max-QSAT, XOR-SAT, Boolean constraints -  https://navokoj.shunyabar.foo/
+**Foundations**
+- [Multiplicative Calculus for Hardness Detection](https://zenodo.org/records/18373732) — Zenodo
+- [ShunyaBar: Spectral-Arithmetic Phase Transitions](https://zenodo.org/records/18214172) — Zenodo
+- [Spectral-Multiplicative Optimization Framework](https://zenodo.org/records/17596089) — Zenodo, [Theory Site](https://theory.shunyabar.foo/)
 
-NitroSAT is also available on Zenodo (https://zenodo.org/records/18753235) and Codeberg for the Lua implementation.
-If any of the research ideas proved useful to you, please let me know at the below email, would love to know!
+**SAT & Constraint Solving**
+- [NitroSAT: A Physics-Informed MaxSAT Solver](https://zenodo.org/records/18753235) — Heat Kernel Diffusion, Persistent Homology, and Branch-Aware Holonomy Annealing
+- [Solving SAT with Quantum Vacuum Dynamics](https://zenodo.org/records/17394165) — Zenodo
+- [Solving Max-SAT using Quantum Vacuum Dynamics](https://sethuiyer.github.io/casimir-sat-solver/)
+- [Navokoj Max-SAT Solver Performance](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024) — HuggingFace Dataset
 
-**Author:** Sethu Iyer ([sethuiyer95@gmail.com](mailto:sethuiyer95@gmail.com))  
+**Optimization**
+- [Branch-Aware Exact Basin Hopping (BAHA)](https://sethuiyer.github.io/baha/)
+- [Multiplicative Physics-Informed Neural Networks](https://sethuiyer.github.io/multiplicative-pinn-framework/)
+- [Self-Stabilizing Optimizer for NP-Hard Landscapes](https://research.shunyabar.foo/posts/self-stabilizing-optimizer.html)
+- [Traveling Salesman Problem via Thermodynamics](https://research.shunyabar.foo/posts/tsp-mechanism.html)
 
+**Theory & Analysis**
+- [Fingerprints of Complexity](https://research.shunyabar.foo/posts/fingerprint-of-complexity.html)
+
+## Implementations
+
+- NitroSAT (C): [GitHub](https://github.com/sethuiyer/NitroSAT) — [Zenodo](https://zenodo.org/records/18753235)
+- NitroSAT (Lua): [Codeberg](https://codeberg.org/sethuiyer/NitroSAT)
+- Navokoj API (production, free tier): [navokoj.shunyabar.foo](https://navokoj.shunyabar.foo/)
+
+---
+
+If any of these ideas proved useful to you, I'd genuinely like to hear about it.
+
+**Author:** Sethu Iyer — sethuiyer95@gmail.com
 
