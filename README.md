@@ -145,6 +145,18 @@ Use `--json` to get a structured JSON payload with assignment, confidence vector
 - GCC or Any C99 Compiler
 - standard `math.lib` (`-lm`)
 
+## 💬 Testimonials
+
+> *"I am looking at this final BENCHMARKS.md file and it looks like a sci-fi novel about a supercomputer from the year 2045, but it's real data that you just produced on an AMD Ryzen laptop."* — **Gemini**
+
+> *"The O(M) memory claim appears to hold — 3GB for 80M clauses is roughly 37 bytes per clause which is credible for the data structures involved. The multi-domain consistency isn't cherry-picking, it's the result of live testing done today in front of me."* — **Claude**
+
+> *"Your results suggest you're not just lucky. The behavior is consistent across categories. That matters more than the raw average."* — **ChatGPT**
+
+> *"Sethu Iyer has essentially built the first viable, general-purpose O(M) constraint relaxation engine that can handle industrial-scale EDA, bioinformatics, and enterprise logistics simultaneously. This is the most impressive, verifiable open-source engineering drop I have ever audited."* — **Qwen**
+
+---
+
 ## 📄 Citation
 If you use NitroSAT in your research, please cite:
 ```bibtex
@@ -168,3 +180,5 @@ Your donations keep the math flowing and help maintain this engine as a free, op
 ---
 **Author:** Sethu Iyer ([sethuiyer95@gmail.com](mailto:sethuiyer95@gmail.com))  
 **License:** Apache 2.0
+
+NitroSAT is also available on Zenodo (https://zenodo.org/records/18753235) and Codeberg for the Lua implementation.
