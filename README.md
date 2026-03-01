@@ -22,6 +22,7 @@ Unlike traditional solvers that stall on hard combinatorial bottlenecks, NitroSA
 - **Linear Scaling**: $O(M)$ time complexity relative to the number of clauses.
 - **Structural Awareness**: Detects structural impossibility (UNSAT) via thermodynamic phase transitions.
 - **Scale**: Perfectly solves a 350,000-clause clique coloring instance in ~3.5s.
+- **Enterprise Scale**: Solves **80+ million clause** scheduling problems on a single laptop.
 - **Zero Tuning**: works out-of-the-box on Scheduling, Ramsey, Coloring, and N-Queens.
 
 If you have a constraint satisfaction problem with 100k+ clauses and need a fast approximate solution, try this. It won't guarantee 100% but it'll get you 99.5%+ in seconds.
@@ -41,6 +42,7 @@ See [MATH.md](MATH.md#empirical-verification-2026-independent-audit) for the com
 
 - 🖥️ **Chip Verification** - Solves **512×512-bit Hardware Multiplier (2,617,349 clauses)** in **5.92 seconds**
 - 🎓 **Timetabling (ITC)** - Solves **50 courses, 12 rooms, 30 slots (2,504,500 clauses)** in **97 seconds** — fully satisfied
+- 🏢 **Enterprise Timetabling** - Solves **100 courses, 36 rooms, 41 slots (80,278,884 clauses)** in **5.2 hours** — 99.99999% satisfied
 - 🌐 **Graph Theory** - K-Clique, Coloring, Dominating Sets at 99.9%+ satisfaction
 - 📦 **Logistics & Scheduling** - Pigeonhole, Bin Packing, Shift Matching
 
