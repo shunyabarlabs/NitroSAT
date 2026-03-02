@@ -75,7 +75,7 @@ gcc -O3 -march=native -std=c99 nitrosat.c -o nitrosat -lm
 
 ### 2. Run
 ```bash
-./nitrosat tests/rand3sat/rand3sat_50_200.cnf
+./nitrosat problem.cnf
 ```
 
 ### 3. JSON Diagnostics Mode
@@ -84,6 +84,31 @@ Use `--json` to get a structured JSON payload with assignment, confidence vector
 ```bash
 ./nitrosat problem.cnf --json
 ```
+
+### 4. UNSAT Certificate Mode (DRAT)
+Use `--proof` to request a math-guided DRAT proof attempt when no full satisfying assignment is found.
+
+```bash
+./nitrosat problem.cnf --proof proof.drat --proof-format drat --json
+```
+
+The proof backend is **solver-aware** — it uses NitroSAT's own UNSAT detection signals (from [MATH.md](MATH.md)) to guide proof generation:
+
+1. **UNSAT core extraction** — after solving, the backend extracts the irreducible core: unsatisfied clauses + their 1-neighbourhood (variables and clauses touching the blame set). This is the subset where structural impossibility lives.
+2. **GF(2) parity check** (MATH.md §8) — detects odd-cycle contradictions in the binary clause implication graph. This corresponds to β₁ > 0 in the persistent homology of the unsatisfied clause complex.
+3. **Topological probe ordering** (MATH.md §9) — failed-literal probing is ordered by prime-weighted "irreducibility pressure" W(p) = 1/(1+ln p). Variables at β₁ cycle hotspots are probed first.
+4. **Solver diagnostics in status** — when proof generation is inconclusive, the status reports the solver's UNSAT awareness signals: `unsat` (unsatisfied clause count), `fractures` (BAHA phase transition events), `beta1` (persistent topological cycles), `convex` (Theorem 6.1 regime).
+
+Proof status values in JSON output:
+- `generated_top_level_up_conflict` — contradiction found by unit propagation alone.
+- `generated_gf2_parity_refutation` — contradiction from an odd parity cycle (β₁ structure).
+- `generated_topo_failed_literal_refutation` — contradiction via math-guided failed-literal probing.
+- `inconclusive(unsat=N,core=M,fractures=F,beta1=B,convex=C)` — no proof derived; signals explain why (e.g. PHP requires extended resolution, not available in current backend).
+
+Notes:
+- The backend is exact (sound) but incomplete — it will not produce a proof for every UNSAT formula.
+- Pigeonhole-style instances require extended resolution for short proofs (Haken 1985). The solver correctly detects these via `convex=NO` + high `aggregation_error`.
+- `--proof-format lrat` is not yet implemented.
 
 <details>
 <summary><b>Example JSON Output</b> (click to expand)</summary>
@@ -141,6 +166,7 @@ Use `--json` to get a structured JSON payload with assignment, confidence vector
 | `convexity_status` | `STABLE` (convex regime) or `NON_CONVEX` (glassy phase) |
 | `betti_0` / `betti_1` | Topological invariants of the unsatisfied clause complex |
 | `blame` | Top-20 unsatisfied clauses ranked by prime weight (UNSAT debugging) |
+| `proof` | UNSAT certificate request/result metadata (`requested`, `generated`, `status`, `format`, `path`) |
 
 ## 🛠 Requirements
 - GCC or Any C99 Compiler
