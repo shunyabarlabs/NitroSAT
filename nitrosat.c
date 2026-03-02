@@ -1729,16 +1729,33 @@ static int compute_gradients(NitroSat *ns)
 }
 
 /* --------------------------------------------------------------------
-   12. Simple annealing schedule – produces a learning rate
+   12. Adiabatic Learning Rate with Riemann Zeta Gain
+       Matches -z'(s)/z(s) as s -> 1
 -------------------------------------------------------------------- */
-static double annealing_lr(double t, double A0)
+static double zeta_log_derivative_gain(double progress)
+{
+    /* progress matches 1 - (s-1). As progress -> 1, s -> 1.
+       The pole at s=1 behaves as 1/(s-1).
+       Our 's-1' here is approximately (1.0 - progress + 0.01). */
+    double epsilon = 1.0 - progress + 0.02; 
+    return 1.0 / epsilon;
+}
+
+static double annealing_lr(double t, double A0, double progress)
 {
     double phi = PHI;
     double s = sin(PI/20.0 * t) * exp(-PI/20.0 * t)
              + sin(PI/10.0 * t) * exp(-PI/10.0 * t)
              + sin(PI/9.0  * t) * exp(-PI/9.0  * t)
              + sin((1.0/(phi*phi))*t) * exp(-(1.0/(phi*phi))*t);
-    return fmax(0.0, A0 * s);
+    
+    /* Adiabatic gain based on arithmetic proximity to zeta pole */
+    double gain = zeta_log_derivative_gain(progress);
+    
+    /* Cap gain to prevent total divergence */
+    if (gain > 10.0) gain = 10.0;
+    
+    return fmax(0.0, A0 * s * gain);
 }
 
 /* --------------------------------------------------------------------
@@ -2351,6 +2368,12 @@ static int nitrosat_solve(NitroSat *ns)
     double *best_x  = malloc((ns->num_vars+1)*sizeof(double));
     int    prev_sat = 0;              /* For grokking detection */
     int    steps_since_improvement = 0; /* For nuclear zeta perturbation */
+    
+    /* STAGNATION MONITORING: Moving average of satisfaction slope */
+    double sat_window[50] = {0};
+    int sw_idx = 0;
+    double avg_sat = 0;
+    int last_stagnation_step = -100;
 
     for (int i=1;i<=ns->num_vars;++i) best_x[i] = ns->x[i];
 
@@ -2418,6 +2441,33 @@ static int nitrosat_solve(NitroSat *ns)
                 }
             }
         }
+        /* ADAPTIVE STAGNATION MONITOR: Proactive Phase Transitions */
+        sat_window[sw_idx % 50] = (double)sat / ns->num_clauses;
+        sw_idx++;
+        
+        /* Only check every 50 steps to compare window blocks */
+        if (sw_idx >= 50 && sw_idx % 50 == 0) {
+            double sum = 0;
+            for (int k=0; k<50; k++) sum += sat_window[k];
+            double current_avg = sum / 50.0;
+            double slope = current_avg - avg_sat;
+            
+            /* If slope is flat (<0.01% gain) and satisfaction is high (>90%) and not recently fired */
+            if (step > 200 && fabs(slope) < 0.0001 && sat > (int)(0.90 * ns->num_clauses) && (step > last_stagnation_step + 100)) {
+                if (ns->verbose) {
+                    printf("[STAGNATION] Slope plateaued at %.4f%%. Proactively jumping to Stage 2 finisher!\n", current_avg*100.0);
+                }
+                
+                /* Update best_x before jumping out */
+                for (int i = 1; i <= ns->num_vars; ++i) best_x[i] = ns->x[i];
+                best_sat = sat;
+                
+                /* BREAK Langevin loop to enter 3-phase finisher sequence early */
+                break;
+            }
+            avg_sat = current_avg;
+        }
+        
         prev_sat = sat;
 
         /* Debug output every step */
@@ -2448,9 +2498,10 @@ static int nitrosat_solve(NitroSat *ns)
                     if (ns->cl_weights[c] < 0.001) ns->cl_weights[c] = 0.001;  /* Prevent underflow */
                 }
             }
-        } /* annealed learning‑rate */
+        } /* annealed learning‑rate with adiabatic gain */
+        double progress = (double)step / max_steps;
         double t = step * (30.0 / max_steps);
-        double lr = annealing_lr(t, lr0);
+        double lr = annealing_lr(t, lr0, progress);
         if (lr <= 0.0) lr = 1e-6;
         ns->opt->lr = lr;
         optimizer_step(ns->opt, ns->x, ns->grad_buffer, ns->decimated);
