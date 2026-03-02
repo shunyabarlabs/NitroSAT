@@ -545,6 +545,7 @@ typedef struct {
     int    dec_freq;     /* lock variables every N steps */
     int    max_steps;
     int    verbose;
+    int    progress;   /* print milestone events to stderr (always on) */
     /* hot-path buffers */
     double *grad_buffer;
     double *heat_mult_buffer;
@@ -1545,6 +1546,7 @@ static NitroSat *nitrosat_new(Instance *inst, int max_steps, int verbose)
     ns->num_clauses= inst->num_clauses;
     ns->max_steps  = max_steps;
     ns->verbose    = verbose;
+    ns->progress   = 1;
 
     /* degree vector (heat kernel) */
     compute_degrees(ns);
@@ -2456,6 +2458,8 @@ static int nitrosat_solve(NitroSat *ns)
             if (step > 200 && fabs(slope) < 0.0001 && sat > (int)(0.90 * ns->num_clauses) && (step > last_stagnation_step + 100)) {
                 if (ns->verbose) {
                     printf("[STAGNATION] Slope plateaued at %.4f%%. Proactively jumping to Stage 2 finisher!\n", current_avg*100.0);
+                } else if (ns->progress) {
+                    fprintf(stderr, "  [stagnation] %.2f%% plateau → jumping to finisher\n", current_avg*100.0);
                 }
                 
                 /* Update best_x before jumping out */
@@ -2664,6 +2668,7 @@ static int nitrosat_solve(NitroSat *ns)
     /* Phase‑2 : topological repair (≈95 % satisfied) */
     if (sat >= (int)(0.95 * ns->num_clauses)) {
         if (ns->verbose) puts("[phase‑2] entering topological repair");
+        else if (ns->progress) fprintf(stderr, "  [phase-2] topological repair... ");
         
         for (int i = 1; i <= ns->num_vars; ++i) ns->x[i] = best_x[i];
         topological_repair_phase(ns, 1500);
@@ -2674,12 +2679,14 @@ static int nitrosat_solve(NitroSat *ns)
             for (int i = 1; i <= ns->num_vars; ++i) best_x[i] = ns->x[i];
         }
         if (ns->verbose) printf("[phase‑2] finished, sat=%d/%d\n", best_sat, ns->num_clauses);
+        else if (ns->progress) fprintf(stderr, "done → %d/%d (%.2f%%)\n", best_sat, ns->num_clauses, 100.0*best_sat/ns->num_clauses);
         if (best_sat == ns->num_clauses) { free(best_x); return 1; }
     }
 
     /* Phase‑3 : adelic saturation (≈98 % satisfied) */
     if (best_sat >= (int)(0.98 * ns->num_clauses)) {
         if (ns->verbose) puts("[phase‑3] entering adelic saturation");
+        else if (ns->progress) fprintf(stderr, "  [phase-3] adelic saturation... ");
         for (int i = 1; i <= ns->num_vars; ++i) ns->x[i] = best_x[i];
         
         adelic_saturation_phase(ns, 2000);
@@ -2689,12 +2696,14 @@ static int nitrosat_solve(NitroSat *ns)
             for (int i = 1; i <= ns->num_vars; ++i) best_x[i] = ns->x[i];
         }
         if (ns->verbose) printf("[phase‑3] finished, sat=%d/%d\n", best_sat, ns->num_clauses);
+        else if (ns->progress) fprintf(stderr, "done → %d/%d (%.2f%%)\n", best_sat, ns->num_clauses, 100.0*best_sat/ns->num_clauses);
         if (best_sat == ns->num_clauses) { free(best_x); return 1; }
     }
 
     /* Core decomposition “blast’’ */
     if (best_sat < ns->num_clauses) {
         if (ns->verbose) puts("[core] attempting core decomposition");
+        else if (ns->progress) fprintf(stderr, "  [core]    decomposition... ");
         for (int i = 1; i <= ns->num_vars; ++i) ns->x[i] = best_x[i];
         if (core_decomposition(ns)) {
             int core_sat = check_satisfaction(ns);
@@ -2709,6 +2718,7 @@ static int nitrosat_solve(NitroSat *ns)
     /* Final BAHA discrete local search (pure BAHA, no WalkSAT) */
     if (best_sat < ns->num_clauses) {
         if (ns->verbose) puts("[final] BAHA discrete search");
+        else if (ns->progress) fprintf(stderr, "  [final]  BAHA discrete search... ");
         for (int i = 1; i <= ns->num_vars; ++i) ns->x[i] = best_x[i] > 0.5 ? 1.0 : 0.0;
         
         /* Run BAHA-WalkSAT with baha.cpp params: 200 steps × 50 samples */
@@ -2742,10 +2752,13 @@ static int nitrosat_solve_dcw(NitroSat *ns, int num_passes)
     
     for (int pass = 1; pass <= num_passes; ++pass) {
         if (ns->verbose) printf("--- DCW PASS %d ---\n", pass);
+        else if (ns->progress) fprintf(stderr, "[pass %d/%d] ", pass, num_passes);
         
         success = nitrosat_solve(ns);
         recompute_sat_counts(ns);
         int sat_count = check_satisfaction(ns);
+        if (ns->progress && !ns->verbose)
+            fprintf(stderr, "sat=%d/%d (%.2f%%)\n", sat_count, ns->num_clauses, 100.0*sat_count/ns->num_clauses);
         
         if (sat_count > best_overall_sat) {
             best_overall_sat = sat_count;
@@ -3169,6 +3182,8 @@ int main(int argc, char **argv)
 
     /* ---- Solve ---- */
     struct timespec ts_solve_start, ts_solve_end;
+    if (json_output)
+        fprintf(stderr, "NitroSAT  %s  | %d vars  %d clauses\n", cnf_file, ns->num_vars, ns->num_clauses);
     clock_gettime(CLOCK_MONOTONIC, &ts_solve_start);
     int solved = use_dcw ? nitrosat_solve_dcw(ns, 5) : nitrosat_solve(ns);
     clock_gettime(CLOCK_MONOTONIC, &ts_solve_end);

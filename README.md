@@ -78,11 +78,39 @@ gcc -O3 -march=native -std=c99 nitrosat.c -o nitrosat -lm
 ./nitrosat problem.cnf
 ```
 
-### 3. JSON Diagnostics Mode
-Use `--json` to get a structured JSON payload with assignment, confidence vector, latency breakdown, and full thermodynamic diagnostics.
+JSON is the **default output format**. Progress milestones are printed to `stderr` so your terminal stays informative while `stdout` stays clean for piping:
+
+```
+NitroSAT  problem.cnf  | 625 vars  24825 clauses
+[pass 1/5]   [stagnation] 99.99% plateau → jumping to finisher
+  [phase-2] topological repair... done → 24823/24825 (99.99%)
+  [phase-3] adelic saturation... done → 24820/24825 (99.99%)
+  ...
+```
+
+### 3. Piping & Integration
+
+Since `stdout` is clean JSON, you can pipe directly into any tool:
 
 ```bash
-./nitrosat problem.cnf --json
+# Extract the assignment
+./nitrosat problem.cnf | jq '.assignment'
+
+# Check if solved
+./nitrosat problem.cnf | jq '.status'
+
+# Save result to file (progress still prints to terminal)
+./nitrosat problem.cnf > result.json
+
+# Parse in Python
+./nitrosat problem.cnf | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['satisfaction_rate'])"
+```
+
+### 4. Cinematic Mode (Legacy Verbose)
+Use `--cinematic` to get the real-time per-step log stream instead of JSON:
+
+```bash
+./nitrosat problem.cnf --cinematic
 ```
 
 ### 4. UNSAT Certificate Mode (DRAT)
