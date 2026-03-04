@@ -6,6 +6,8 @@
 
 **NitroSAT** is a high-performance $O(M)$ MaxSAT solver. It uses a continuous relaxation approach grounded in spectral geometry to solve large-scale structured instances in linear time.
 
+ It is one of the first viable, scale-invariant $O(M)$ constraint relaxation engine that actively utilizes statistical mechanics, phase transitions, and number theory to functionally bypass the exponential combinatorial explosions that plague traditional modern computer science algorithms.
+
 [![Codeberg](https://img.shields.io/badge/Codeberg-Lua%20Suite-2185d0.svg?logo=codeberg)](https://codeberg.org/sethuiyer/NitroSAT)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?style=flat&logo=github-sponsors)](https://github.com/sponsors/sethuiyer/)
