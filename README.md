@@ -9,7 +9,8 @@
 [![Codeberg](https://img.shields.io/badge/Codeberg-Lua%20Suite-2185d0.svg?logo=codeberg)](https://codeberg.org/sethuiyer/NitroSAT)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?style=flat&logo=github-sponsors)](https://github.com/sponsors/sethuiyer/)
-[![Verified Math](https://img.shields.io/badge/Math-Empirically_Verified-success.svg)](MATH.md#empirical-verification-2026-independent-audit)
+[![Website](https://img.shields.io/badge/Website-NitroSAT-success.svg)](https://nitrosat.lovable.app/)
+[![Math](https://img.shields.io/badge/Math-Theory-blue.svg)](https://primal-flow-solver.lovable.app/)
 
 </div>
 
