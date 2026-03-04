@@ -33,7 +33,7 @@ The solver consistently achieves **99.5%+ satisfaction** on million-clause insta
 - **No External Dependencies** — Standalone C99 implementation
 - **Lua Implementation** — LuaJIT version available via [Codeberg](https://codeberg.org/sethuiyer/NitroSAT)
 
-**Website:** [primal-flow-solver.lovable.app](https://primal-flow-solver.lovable.app/)
+**Website:** [primal-flow-solver.lovable.app](https://primal-flow-solver.lovable.app/) and [https://nitrosat.lovable.app/](https://nitrosat.lovable.app/)
 **Video:** [YouTube](https://www.youtube.com/watch?v=KDYmkMYjeY8)
 
 ---
