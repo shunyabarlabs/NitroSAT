@@ -34,7 +34,8 @@ NitroSAT maps the Boolean satisfiability problem to an energy landscape, using s
 
 ![NitroSAT Mechanism](img/howitworks.png)
 
-Website: https://primal-flow-solver.lovable.app/
+Website: https://nitrosat.lovable.app/
+Math: https://primal-flow-solver.lovable.app/
 Video: https://www.youtube.com/watch?v=KDYmkMYjeY8
 
 ## 🔬 Verified Math
