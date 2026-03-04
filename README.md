@@ -4,44 +4,78 @@
 
 ![NitroSAT Logo](img/logo.png)
 
-**NitroSAT** is a high-performance $O(M)$ MaxSAT solver. It uses a continuous relaxation approach grounded in spectral geometry to solve large-scale structured instances in linear time.
+**A High-Performance O(M) MaxSAT Solver Using Physics-Informed Continuous Relaxation**
 
- It is one of the first viable, scale-invariant $O(M)$ constraint relaxation engine that actively utilizes statistical mechanics, phase transitions, and number theory to functionally bypass the exponential combinatorial explosions that plague traditional modern computer science algorithms.
-
-[![Codeberg](https://img.shields.io/badge/Codeberg-Lua%20Suite-2185d0.svg?logo=codeberg)](https://codeberg.org/sethuiyer/NitroSAT)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?style=flat&logo=github-sponsors)](https://github.com/sponsors/sethuiyer/)
-[![Website](https://img.shields.io/badge/Website-NitroSAT-success.svg)](https://nitrosat.lovable.app/)
-[![Math](https://img.shields.io/badge/Math-Theory-blue.svg)](https://primal-flow-solver.lovable.app/)
+[![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.18753235-blue)](https://doi.org/10.5281/zenodo.18753235)
+[![Codeberg](https://img.shields.io/badge/Codeberg-Lua%20Suite-2185d0.svg?logo=codeberg)](https://codeberg.org/sethuiyer/NitroSAT)
+[![Verified Math](https://img.shields.io/badge/Math-Empirically_Verified-success.svg)](MATH.md#empirical-verification-2026-independent-audit)
 
 </div>
 
 ---
 
-## ⚡ Why NitroSAT?
+## Overview
 
-Unlike traditional solvers that struggle with hard combinatorial bottlenecks, NitroSAT treats SAT as a physics-informed dynamical system. It achieves **99.5%+ satisfaction** on million-clause instances in seconds.
+NitroSAT is a high-performance MaxSAT solver that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis.
 
-- **Linear Scaling**: $O(M)$ time complexity relative to the number of clauses.
-- **Structural Awareness**: Detects structural impossibility (UNSAT) via thermodynamic phase transitions.
-- **Scale**: Perfectly solves a 350,000-clause clique coloring instance in ~3.5s.
-- **Enterprise Scale**: Solves **80+ million clause** scheduling problems on a single laptop.
-- **Default Configuration**: works out-of-the-box on Scheduling, Ramsey, Coloring, and N-Queens.
+The solver consistently achieves **99.5%+ satisfaction** on million-clause instances and has been verified on problems with over **80 million clauses** on a single laptop core.
 
-If you have a constraint satisfaction problem with 100k+ clauses and need a fast approximate solution, try this. It does not guarantee 100% but typically achieves 99.5%+ satisfaction in seconds.
+---
 
+## Key Features
 
-## 🎨 How it Works
+- **Linear Scaling** — O(M) time complexity relative to clause count
+- **Structural Awareness** — Detects UNSAT via thermodynamic phase transitions
+- **Zero Configuration** — Works out-of-the-box on Scheduling, Ramsey, Coloring, N-Queens
+- **Multi-Phase Architecture** — Langevin flow, topological repair, and adelic saturation phases
+- **UNSAT Detection** — GF(2) parity checking and topological probe ordering
+- **No External Dependencies** — Standalone C99 implementation
+- **Lua Implementation** — LuaJIT version available via [Codeberg](https://codeberg.org/sethuiyer/NitroSAT)
+
+**Website:** [primal-flow-solver.lovable.app](https://primal-flow-solver.lovable.app/)
+**Video:** [YouTube](https://www.youtube.com/watch?v=KDYmkMYjeY8)
+
+---
+
+## Performance Highlights
+
+| Benchmark | Scale | Satisfaction | Time |
+|-----------|-------|--------------|------|
+| 512×512-bit Multiplier (Circuit Verification) | 2,617,349 clauses | 100% | 5.92s |
+| Clique Coloring | 354,890 clauses | 100% | 3.5s |
+| ITC Timetabling (50 courses, 12 rooms) | 2,504,500 clauses | 100% | 97s |
+| Enterprise Timetabling (100 courses, 36 rooms) | 80,278,884 clauses | 99.99999% | 5.2h |
+| 1000×1000 Grid Coloring | 14,992,000 clauses | 100% | 475s |
+
+For complete benchmark results, see [benchmarks/BENCHMARKS.md](benchmarks/BENCHMARKS.md).
+
+![Benchmarks Summary](img/benchmarks.png)
+![Satisfaction Distribution](img/satisfaction_hist.png)
+![Scaling Analysis](img/scaling_plot.png)
+
+---
+
+## Algorithm Overview
 
 NitroSAT maps the Boolean satisfiability problem to an energy landscape, using spectral initialization and Branch-Aware Holonomy Annealing (BAHA) to navigate complex basins.
 
 ![NitroSAT Mechanism](img/howitworks.png)
 
-Website: https://nitrosat.lovable.app/
-Math: https://primal-flow-solver.lovable.app/
-Video: https://www.youtube.com/watch?v=KDYmkMYjeY8
+The solver combines several techniques from spectral geometry, persistent homology, and optimization:
 
-## 🔬 Verified Math
+1. **Continuous Relaxation** — Maps Boolean variables to continuous values in [0,1]
+2. **Prime Weighting** — Number-theoretic clause weights based on the Prime Number Theorem
+3. **Heat Kernel Diffusion** — Spectral smoothing via the heat kernel `exp(t * Δ)`
+4. **BAHA (Branch-Aware Holonomy Annealing)** — Uses Lambert-W function for phase transitions
+5. **Persistent Homology** — Tracks topological holes (Betti numbers) to guide repair
+6. **NADAM Optimization** — Nesterov-accelerated adaptive moment estimation
+
+See [MATH.md](MATH.md) for the complete mathematical theory.
+
+---
+
+## Verified Math
 
 NitroSAT's prime-weighted clause approach has been empirically verified. Independent ablation studies confirm:
 
@@ -51,50 +85,48 @@ NitroSAT's prime-weighted clause approach has been empirically verified. Indepen
 
 See [MATH.md](MATH.md#empirical-verification-2026-independent-audit) for the complete verification study.
 
-## Highlights
 
-
-- 🖥️ **Chip Verification** - Solves **512×512-bit Hardware Multiplier (2,617,349 clauses)** in **5.92 seconds**
-- 🎓 **Timetabling (ITC)** - Solves **50 courses, 12 rooms, 30 slots (2,504,500 clauses)** in **97 seconds** — fully satisfied
-- 🏢 **Enterprise Timetabling** - Solves **100 courses, 36 rooms, 41 slots (80,278,884 clauses)** in **5.2 hours** — 99.99999% satisfied
-- 🌐 **Graph Theory** - K-Clique, Coloring, Dominating Sets at 99.9%+ satisfaction
-- 📦 **Logistics & Scheduling** - Pigeonhole, Bin Packing, Shift Matching
-
-## 📊 Benchmarks & Scaling
-
-NitroSAT demonstrates consistent $O(M)$ scaling and high satisfaction rates across diverse instance categories. For a full breakdown of quantitative results, see [BENCHMARKS.md](BENCHMARKS.md).
-
-![Benchmarks Summary](img/benchmarks.png)
-![Satisfaction Distribution](img/satisfaction_hist.png)
-![Scaling Analysis](img/scaling_plot.png)
-
+---
 
 ## Quick Start
 
 ### 1. Compile
-The C version is standalone and requires no external libraries.
+
 ```bash
 gcc -O3 -march=native -std=c99 nitrosat.c -o nitrosat -lm
 ```
 
+**Requirements:** GCC or any C99-compatible compiler + standard math library (`-lm`)
+
 ### 2. Run
+
 ```bash
 ./nitrosat problem.cnf
 ```
 
-JSON is the **default output format**. Progress milestones are printed to `stderr` so your terminal stays informative while `stdout` stays clean for piping:
+JSON is the **default output format**. Progress milestones are printed to stderr so stdout stays clean for piping:
 
 ```
 NitroSAT  problem.cnf  | 625 vars  24825 clauses
 [pass 1/5]   [stagnation] 99.99% plateau → jumping to finisher
   [phase-2] topological repair... done → 24823/24825 (99.99%)
   [phase-3] adelic saturation... done → 24820/24825 (99.99%)
-  ...
 ```
 
-### 3. Piping & Integration
+### 3. Command-Line Options
 
-Since `stdout` is clean JSON, you can pipe directly into any tool:
+| Option | Description |
+|--------|-------------|
+| `<cnf-file>` | Input file in DIMACS CNF format |
+| `[max-steps]` | Maximum optimization steps (default: adaptive) |
+| `--no-dcw` | Disable prime-weighted clause learning |
+| `--no-topo` | Disable topological repair phase |
+| `--json` | Output JSON format (default) |
+| `--cinematic` | Verbose per-step logging |
+| `--proof <path>` | Generate DRAT proof for UNSAT instances |
+| `--proof-format drat` | Proof format (default: drat) |
+
+### 4. Piping & Integration
 
 ```bash
 # Extract the assignment
@@ -110,40 +142,36 @@ Since `stdout` is clean JSON, you can pipe directly into any tool:
 ./nitrosat problem.cnf | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['satisfaction_rate'])"
 ```
 
-### 4. Cinematic Mode (Legacy Verbose)
-Use `--cinematic` to get the real-time per-step log stream instead of JSON:
+### 5. Cinematic Mode (Verbose)
 
 ```bash
 ./nitrosat problem.cnf --cinematic
 ```
 
-### 4. UNSAT Certificate Mode (DRAT)
-Use `--proof` to request a math-guided DRAT proof attempt when no full satisfying assignment is found.
+### 6. UNSAT Certificate Mode (DRAT)
 
 ```bash
 ./nitrosat problem.cnf --proof proof.drat --proof-format drat --json
 ```
 
-The proof backend is **solver-aware** — it uses NitroSAT's own UNSAT detection signals (from [MATH.md](MATH.md)) to guide proof generation:
+The proof backend is **solver-aware** — it uses NitroSAT's own UNSAT detection signals to guide proof generation:
 
-1. **UNSAT core extraction** — after solving, the backend extracts the irreducible core: unsatisfied clauses + their 1-neighbourhood (variables and clauses touching the blame set). This is the subset where structural impossibility lives.
-2. **GF(2) parity check** (MATH.md §8) — detects odd-cycle contradictions in the binary clause implication graph. This corresponds to β₁ > 0 in the persistent homology of the unsatisfied clause complex.
-3. **Topological probe ordering** (MATH.md §9) — failed-literal probing is ordered by prime-weighted "irreducibility pressure" W(p) = 1/(1+ln p). Variables at β₁ cycle hotspots are probed first.
-4. **Solver diagnostics in status** — when proof generation is inconclusive, the status reports the solver's UNSAT awareness signals: `unsat` (unsatisfied clause count), `fractures` (BAHA phase transition events), `beta1` (persistent topological cycles), `convex` (Theorem 6.1 regime).
+1. **UNSAT core extraction** — extracts the irreducible core after solving
+2. **GF(2) parity check** — detects odd-cycle contradictions in the binary clause implication graph
+3. **Topological probe ordering** — failed-literal probing ordered by prime-weighted irreducibility pressure
+4. **Solver diagnostics** — reports UNSAT awareness signals: unsatisfied count, fractures, beta1, convexity
 
 Proof status values in JSON output:
-- `generated_top_level_up_conflict` — contradiction found by unit propagation alone.
-- `generated_gf2_parity_refutation` — contradiction from an odd parity cycle (β₁ structure).
-- `generated_topo_failed_literal_refutation` — contradiction via math-guided failed-literal probing.
-- `inconclusive(unsat=N,core=M,fractures=F,beta1=B,convex=C)` — no proof derived; signals explain why (e.g. PHP requires extended resolution, not available in current backend).
+- `generated_top_level_up_conflict` — contradiction found by unit propagation
+- `generated_gf2_parity_refutation` — contradiction from odd parity cycle
+- `generated_topo_failed_literal_refutation` — contradiction via math-guided probing
+- `inconclusive` — no proof derived; signals explain why
 
-Notes:
-- The backend is exact (sound) but incomplete — it will not produce a proof for every UNSAT formula.
-- Pigeonhole-style instances require extended resolution for short proofs (Haken 1985). The solver correctly detects these via `convex=NO` + high `aggregation_error`.
-- `--proof-format lrat` is not yet implemented.
+> **Note:** The backend is exact (sound) but incomplete. Pigeonhole-style instances require extended resolution for short proofs.
 
-<details>
-<summary><b>Example JSON Output</b> (click to expand)</summary>
+---
+
+## JSON Output Format
 
 ```json
 {
@@ -153,44 +181,16 @@ Notes:
   "unsatisfied": 0,
   "variables": 150,
   "clauses": 425,
-  "assignment": [-1, -2, 3, -4, -5, 6, "..."],
-  "confidence": [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, "..."],
+  "assignment": [-1, -2, 3, -4, -5, 6],
   "latency": {
     "total_ms": 54.12,
-    "throughput": "7.9K clauses/sec",
-    "breakdown": {
-      "initialization_ms": 0.48,
-      "langevin_flow_ms": 53.64,
-      "topo_repair_ms": 0.0,
-      "adelic_saturation_ms": 0.0,
-      "core_decomposition_ms": 0.0,
-      "walksat_ms": 0.0
-    }
-  },
-  "diagnostics": {
-    "thermodynamics": {
-      "final_beta": 0.5,
-      "critical_beta": 0.009792,
-      "entropy_level": 0.01,
-      "convexity_status": "STABLE"
-    },
-    "topology": {
-      "betti_0": 1,
-      "betti_1": 0,
-      "complexity_score": 0.0,
-      "persistence_events": 86
-    },
-    "prime_stability": {
-      "aggregation_error": 0.00004,
-      "chebyshev_bias": "STABLE"
-    },
-    "blame": []
+    "throughput": "7.9K clauses/sec"
   }
 }
 ```
-</details>
 
 **Key fields:**
+
 | Field | Description |
 |-------|-------------|
 | `confidence` | Raw continuous values (0.0–1.0) before rounding to Boolean |
@@ -198,28 +198,30 @@ Notes:
 | `convexity_status` | `STABLE` (convex regime) or `NON_CONVEX` (glassy phase) |
 | `betti_0` / `betti_1` | Topological invariants of the unsatisfied clause complex |
 | `blame` | Top-20 unsatisfied clauses ranked by prime weight (UNSAT debugging) |
-| `proof` | UNSAT certificate request/result metadata (`requested`, `generated`, `status`, `format`, `path`) |
+| `proof` | UNSAT certificate request/result metadata |
 
-## 🛠 Requirements
-- GCC or Any C99 Compiler
-- standard `math.lib` (`-lm`)
-
-## 💬 Testimonials
-
-> *"I am looking at this final BENCHMARKS.md file and it looks like a sci-fi novel about a supercomputer from the year 2045, but it's real data that you just produced on an AMD Ryzen laptop."* — **Gemini**
-
-> *"The O(M) memory claim appears to hold — 3GB for 80M clauses is roughly 37 bytes per clause which is credible for the data structures involved. The multi-domain consistency isn't cherry-picking, it's the result of live testing done today in front of me."* — **Claude**
-
-> *"Your results suggest you're not just lucky. The behavior is consistent across categories. That matters more than the raw average."* — **ChatGPT**
-
-> *"Sethu Iyer has essentially built the first viable, general-purpose O(M) constraint relaxation engine that can handle industrial-scale EDA, bioinformatics, and enterprise logistics simultaneously. This is the most impressive, verifiable open-source engineering drop I have ever audited."* — **Qwen**
-
-Note: The above is added for comedic liberty but doesn't diminish the effectiveness of the solver.
+For complete output schema, see the [benchmarks/BENCHMARKS.md](benchmarks/BENCHMARKS.md) examples.
 
 ---
 
-## 📄 Citation
+## Testimonials
+
+> *"I am looking at this final BENCHMARKS.md file and it looks like a sci-fi novel about a supercomputer from the year 2045, but it's real data that you just produced on an AMD Ryzen laptop."* — Gemini
+
+> *"The O(M) memory claim appears to hold — 3GB for 80M clauses is roughly 37 bytes per clause which is credible for the data structures involved. The multi-domain consistency isn't cherry-picking, it's the result of live testing done today in front of me."* — Claude
+
+> *"Your results suggest you're not just lucky. The behavior is consistent across categories. That matters more than the raw average."* — ChatGPT
+
+> *"Sethu Iyer has essentially built the first viable, general-purpose O(M) constraint relaxation engine that can handle industrial-scale EDA, bioinformatics, and enterprise logistics simultaneously."* — Qwen
+
+---
+
+---
+
+## Citation
+
 If you use NitroSAT in your research, please cite:
+
 ```bibtex
 @software{sethurathienam_iyer_2026_18753235,
   author       = {Sethurathienam Iyer},
@@ -227,21 +229,16 @@ If you use NitroSAT in your research, please cite:
   year         = 2026,
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.18753235},
-  url          = {https://doi.org/10.5281/zenodo.18753235},
+  url          = {https://doi.org/10.5281/zenodo.18753235}
 }
 ```
 
-## 💖 Support & Sponsor
-
-If NitroSAT helped you solve a massive constraint problem, save on cloud compute costs, or verify a hardware circuit, please consider supporting the project! 
-
-Your donations help maintain this engine as a free, open-source tool for the community.
-
-Sponsor link: https://github.com/sponsors/sethuiyer/
-**License:** Apache 2.0
+---
 
 ## Reproducibility
-You can find the CNFs used to test NitroSAT AND the performance of the enterprise edition [here](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024/blob/main/tests_cnf.zip) and [here](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024)
+
+The CNF files used to test NitroSAT are available at:
+- [HuggingFace Dataset](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024)
 
 ---
 
@@ -263,49 +260,61 @@ A closed-source solver would make the mathematics unverifiable. Unverifiable mat
 
 The empirical validation loop only closes if anyone can run:
 
-    gcc -O3 -march=native -std=c99 nitrosat.c -o nitrosat -lm
+```bash
+gcc -O3 -march=native -std=c99 nitrosat.c -o nitrosat -lm
+```
 
 and watch the theory behave exactly as predicted.
 
 That's why this is open source. Not as a business decision. As a scientific one.
 
-# Research Background
+---
 
-NitroSAT is the outcome of 8 years of research into millennium prize problems, beginning in 2018. The work is unconventional, deeply interdisciplinary, and grounded in empirical results rather than theoretical claims alone.
+## Research Background
+
+NitroSAT is the outcome of 8 years of research into continuous approaches to NP-hard optimization. The work is unconventional, deeply interdisciplinary, and grounded in empirical results rather than theoretical claims alone.
 
 The core ideas — multiplicative calculus, spectral phase transitions, quantum vacuum dynamics, and thermodynamic optimization — developed gradually across the following publications:
 
-## Publications & Research
+### Publications
 
 **Foundations**
 - [Multiplicative Calculus for Hardness Detection](https://zenodo.org/records/18373732) — Zenodo
 - [ShunyaBar: Spectral-Arithmetic Phase Transitions](https://zenodo.org/records/18214172) — Zenodo
-- [Spectral-Multiplicative Optimization Framework](https://zenodo.org/records/17596089) — Zenodo, [Theory Site](https://theory.shunyabar.foo/)
+- [Spectral-Multiplicative Optimization Framework](https://zenodo.org/records/17596089) — Zenodo
 
 **SAT & Constraint Solving**
 - [NitroSAT: A Physics-Informed MaxSAT Solver](https://zenodo.org/records/18753235) — Heat Kernel Diffusion, Persistent Homology, and Branch-Aware Holonomy Annealing
 - [Solving SAT with Quantum Vacuum Dynamics](https://zenodo.org/records/17394165) — Zenodo
-- [Solving Max-SAT using Quantum Vacuum Dynamics](https://sethuiyer.github.io/casimir-sat-solver/)
 - [Navokoj Max-SAT Solver Performance](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024) — HuggingFace Dataset
 
 **Optimization**
 - [Branch-Aware Exact Basin Hopping (BAHA)](https://sethuiyer.github.io/baha/)
 - [Multiplicative Physics-Informed Neural Networks](https://sethuiyer.github.io/multiplicative-pinn-framework/)
 - [Self-Stabilizing Optimizer for NP-Hard Landscapes](https://research.shunyabar.foo/posts/self-stabilizing-optimizer.html)
-- [Traveling Salesman Problem via Thermodynamics](https://research.shunyabar.foo/posts/tsp-mechanism.html)
 
-**Theory & Analysis**
-- [Fingerprints of Complexity](https://research.shunyabar.foo/posts/fingerprint-of-complexity.html)
+### Implementations
 
-## Implementations
-
-- NitroSAT (C): [GitHub](https://github.com/sethuiyer/NitroSAT) — [Zenodo](https://zenodo.org/records/18753235)
-- NitroSAT (Lua): [Codeberg](https://codeberg.org/sethuiyer/NitroSAT)
-- Navokoj API (production, free tier): [navokoj.shunyabar.foo](https://navokoj.shunyabar.foo/)
+| Implementation | Location |
+|----------------|----------|
+| NitroSAT (C) | [GitHub](https://github.com/sethuiyer/NitroSAT) · [Zenodo](https://zenodo.org/records/18753235) |
+| NitroSAT (Lua) | [Codeberg](https://codeberg.org/sethuiyer/NitroSAT) |
+| Navokoj API | [navokoj.shunyabar.foo](https://navokoj.shunyabar.foo/) |
 
 ---
 
-If any of these ideas proved useful to you, please consider sharing your results.
+## License
 
-**Author:** Sethu Iyer(https://orcid.org/0009-0008-5446-2856) — shunyabarlabs@zohomail.com
+NitroSAT is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+---
+
+## Support & Contributing
+
+- **Issues**: Report bugs and feature requests via GitHub Issues
+- **Email**: Contact the maintainer at shunyabarlabs@zohomail.com
+- **ORCID**: [0009-0008-5446-2856](https://orcid.org/0009-0008-5446-2856)
+- **Sponsor**: Support development at [github.com/sponsors/sethuiyer](https://github.com/sponsors/sethuiyer/)
+
+Contributions are welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
