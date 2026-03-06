@@ -35,23 +35,6 @@ The solver consistently achieves **99.5%+ satisfaction** on million-clause insta
 
 ---
 
-## Performance Highlights
-
-| Benchmark | Scale | Satisfaction | Time |
-|-----------|-------|--------------|------|
-| 512×512-bit Multiplier (Circuit Verification) | 2,617,349 clauses | 100% | 5.92s |
-| Clique Coloring | 354,890 clauses | 100% | 3.5s |
-| ITC Timetabling (50 courses, 12 rooms) | 2,504,500 clauses | 100% | 97s |
-| Enterprise Timetabling (100 courses, 36 rooms) | 80,278,884 clauses | 99.99999% | 5.2h |
-| 1000×1000 Grid Coloring | 14,992,000 clauses | 100% | 475s |
-
-For complete benchmark results, see [benchmarks/BENCHMARKS.md](benchmarks/BENCHMARKS.md).
-
-![Benchmarks Summary](img/benchmarks.png)
-![Satisfaction Distribution](img/satisfaction_hist.png)
-![Scaling Analysis](img/scaling_plot.png)
-
----
 
 ## Algorithm Overview
 
@@ -69,6 +52,26 @@ The solver combines several techniques from spectral geometry, persistent homolo
 6. **NADAM Optimization** — Nesterov-accelerated adaptive moment estimation
 
 See [MATH.md](MATH.md) for the complete mathematical theory.
+
+---
+
+![Benchmarks Summary](img/benchmarks.png)
+
+
+## Performance Highlights
+
+| Benchmark | Scale | Satisfaction | Time |
+|-----------|-------|--------------|------|
+| 512×512-bit Multiplier (Circuit Verification) | 2,617,349 clauses | 100% | 5.92s |
+| Clique Coloring | 354,890 clauses | 100% | 3.5s |
+| ITC Timetabling (50 courses, 12 rooms) | 2,504,500 clauses | 100% | 97s |
+| Enterprise Timetabling (100 courses, 36 rooms) | 80,278,884 clauses | 99.99999% | 5.2h |
+| 1000×1000 Grid Coloring | 14,992,000 clauses | 100% | 475s |
+
+For complete benchmark results, see [benchmarks/BENCHMARKS.md](benchmarks/BENCHMARKS.md).
+
+![Satisfaction Distribution](img/satisfaction_hist.png)
+![Scaling Analysis](img/scaling_plot.png)
 
 ---
 
