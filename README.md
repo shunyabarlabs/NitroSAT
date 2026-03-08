@@ -21,6 +21,10 @@ NitroSAT is a high-performance MaxSAT solver that achieves **O(M) linear time co
 
 The solver consistently achieves **99.5%+ satisfaction** on million-clause instances and has been verified on problems with over **80 million clauses** on a single laptop core.
 
+CNF instance: timetable.cnf from https://huggingface.co/datasets/sethuiyer/navokoj\_sat\_2024/blob/main/tests\_cnf.zip
+Output file: timetable\_output.json
+
+
 ---
 
 ## Key Features
