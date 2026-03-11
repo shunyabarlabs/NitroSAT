@@ -19,6 +19,7 @@
 
 NitroSAT is a high-performance MaxSAT solver that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis.
 
+We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024
 
 | Test Name / Problem Type | Variables | Clauses | Ratio ($\alpha$) | Latency | Satisfaction |
 | :--- | :--- | :--- | :--- | :--- | :--- |
