@@ -4,7 +4,7 @@
 
 ![NitroSAT Logo](img/logo.png)
 
-**A High-Performance O(M) MaxSAT Solver Using Physics-Informed Continuous Relaxation**. Made in India by [Shunyabar Labs](https://shunyabar.foo/).
+**A High-Performance O(M) MaxSAT solver with unusually good scaling behavior and high satisfaction rates on massive instances. Using Physics-Informed Continuous Relaxation**. Made in India by [Shunyabar Labs](https://shunyabar.foo/).
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![DOI](https://img.shields.io/badge/DOI-10.5281/zenodo.18753235-blue)](https://doi.org/10.5281/zenodo.18753235)
@@ -17,7 +17,7 @@
 
 ## Overview
 
-NitroSAT is a high-performance MaxSAT solver that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis.
+NitroSAT is a high-performance MaxSAT solver with unusually good scaling behavior and high satisfaction rates on massive instances that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis.
 
 We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024
 
