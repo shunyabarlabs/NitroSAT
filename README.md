@@ -244,6 +244,8 @@ The CNF files used to test NitroSAT are available at:
 
 NitroSAT is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
 
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fsethuiyer%2FNitroSAT.svg?type=large\&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2Fsethuiyer%2FNitroSAT?ref=badge_large&issueType=license)
+
 ---
 
 ## Support & Contributing
