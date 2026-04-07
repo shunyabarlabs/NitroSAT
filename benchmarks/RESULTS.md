@@ -126,6 +126,42 @@
 
 ---
 
+## 7. Death Run (Final Boss Instances)
+
+These instances are designed to break continuous-flow solvers by exploiting known weaknesses.
+
+### 7.1 Topological Traps (β₁ Destroyers)
+
+| Instance | Vars | Clauses | Sat% | Time |
+|----------|------|---------|------|------|
+| overlapping_5cycles | 2,500 | 15,099 | **100%** | 4ms |
+| cycle_complex | 6,400 | 47,974 | **100%** | 11ms |
+
+**Result**: Topological traps fail — β₁ drops to 0, heat kernel resolves the cycles.
+
+### 7.2 Gradient Killers (XOR at Phase Transition)
+
+| Instance | Vars | Clauses | Sat% | Time |
+|----------|------|---------|------|------|
+| xor_sat_threshold | 500 | 1,840 | **99.35%** | 1.5s |
+| xor_hard | 1,000 | 3,680 | **98.97%** | 3.4s |
+
+**Result**: XOR constraints create flat landscapes, but prime weighting still achieves near-perfect solutions.
+
+### 7.3 Locality Destroyers (Expander Graphs)
+
+| Instance | Vars | Clauses | Sat% | Time |
+|----------|------|---------|------|------|
+| expander (2K) | 2,000 | 10,657 | 92.08% | 1.3s |
+| expander_large (5K) | 5,000 | 39,011 | 90.24% | 7.2s |
+| expander_20k | 20,000 | 128,001 | 91.56% | 31s |
+| expander_50k | 50,000 | 382,593 | 90.61% | 1m 41s |
+| **expander_100k** | **100,000** | **764,238** | **90.57%** | **3m 24s** |
+
+**Result**: Stable ~90% from 2K to 100K vars. The solver defies the expansion property — heat flows through hardness.
+
+---
+
 ## Summary Statistics
 
 ### Perfect Solves (100%)
@@ -154,6 +190,13 @@
 3. **Phase transition at L≈40**: Beyond 40 spins per dimension, performance degrades — likely due to correlation length exceeding system size.
 
 4. **CDCL traps don't trap NitroSAT**: The pitfall formula (designed to break CDCL) solves in 600ms with 100% satisfaction.
+
+5. **Death run findings**:
+   - Topological traps (overlapping cycles): **100%** — BAHA resolves β₁
+   - XOR at threshold: **98-99%** — prime weighting creates slope in flat landscapes
+   - Expander graphs: **~90%** — weakest point, locality destruction limits diffusion
+
+6. **The breaking point**: High-expansion expander graphs are the hardest. If you can crack the Urquhart expander at scale, that's publication-worthy.
 
 ---
 
