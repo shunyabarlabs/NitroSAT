@@ -19,37 +19,21 @@
 
 NitroSAT is a high-performance MaxSAT approximator with unusually good scaling behavior and high satisfaction rates on massive instances that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis. Find the code [here](https://github.com/sethuiyer/NitroSAT/blob/main/src/c/v2/nitrosatv2.c).
 
-We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024
+We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024 and benchmarks/README.md.
+
+Some notable results:
 
 | Test Name / Problem Type | Variables | Clauses | Ratio ($\alpha$) | Latency | Satisfaction |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Planted Coloring (Lua)** | 105,000 | 232,043 | 2.21 | 13.78s | 100% |
 | **Grid Coloring (1000x1000)** | 4,000,000 | 14,992,000 | 3.75 | 475.0s | 100% |
 | **Massive Hardware Check** | 788,480 | 2,617,349 | 3.32 | 5.92s | 100% |
-| **Enterprise Timetabling** | 147,600 | 80,278,884 | 543.89 | 5.2h | 99.99999% |
+| **Enterprise Timetabling** | 147,600 | 80,278,884 | 543.89 |73sec | 100% |
 | **Titan Ramsey Density** | 780 | 1,316,016 | **1,687.20** | 3,403.0s | 99.995% |
 | **Adversarial Pitfall Trap** | 2,950 | 1,047,620 | 355.12 | ~400.0s | 100% |
 | **Large Phase Transition** | 200,000 | 852,000 | 4.26 | 11.2 min | 99.20% |
 | **Ramsey R(5,5,5)** | ~4,760 | 354,890 | 74.56 | 3.5s | 100% |
 | **Small-World Lattice** | 360,000 | 1,354,800 | 3.76 | 62.75s | 100% |
-
-The solver consistently achieves **99.5%+ satisfaction** on million-clause instances and has been verified even on problems with over **80 million clauses** on a single laptop core. The version 2 of the solver
-features improved convergence rate to perfect satisfaction on the same problem.
-
-| Instance | Variables | Clauses | Satisfaction | Time | Throughput | Hardware |
-|----------|-----------|---------|--------------|------|------------|----------|
-| timetable.cnf | 147,600 | 80,278,884 | **100%** | **73s** | **1.1M clauses/sec** | AMD Ryzen 5 5600H (laptop) |
-
-**Latency Breakdown:**
-- Initialization: 41s
-- Langevin Flow: 33s
-- Total: 73s
-
-*Run command:* `./nitrosatv2 timetable.cnf > output.json`
-
-**Output:** [timetable_output.json](benchmarks/timetable_output.json)
-
-CNF instance: [timetable.cnf](https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024/blob/main/tests_cnf.zip) from HuggingFace
 
 ---
 
@@ -80,12 +64,6 @@ NitroSAT maps the Boolean satisfiability problem to an energy landscape, using s
 See [MATH.md](MATH.md) for the complete mathematical theory.
 
 ---
-
-![Benchmarks Summary](img/benchmarks.png)
-
-
-## Performance Highlights
-For complete benchmark results, see [benchmarks/BENCHMARKS.md](benchmarks/BENCHMARKS.md).
 
 ![Satisfaction Distribution](img/satisfaction_hist.png)
 ![Scaling Analysis](img/scaling_plot.png)
