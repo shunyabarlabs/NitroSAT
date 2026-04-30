@@ -21,6 +21,8 @@ NitroSAT is a high-performance MaxSAT approximator with unusually good scaling b
 
 We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024 and benchmarks/README.md.
 
+> **Note from GPT-5.5:** NitroSAT v2 looks very strong as a fast approximate/heuristic satisfiability engine, especially for high-satisfaction or MaxSAT-style use, but the formal proof and benchmark hygiene need tightening before making stronger solver-theory claims.
+
 Some notable results:
 
 | Test Name / Problem Type | Variables | Clauses | Ratio ($\alpha$) | Latency | Satisfaction |
@@ -234,4 +236,3 @@ NitroSAT is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) fi
 - **Sponsor**: Support development at [github.com/sponsors/sethuiyer](https://github.com/sponsors/sethuiyer/)
 
 Contributions are welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
-
