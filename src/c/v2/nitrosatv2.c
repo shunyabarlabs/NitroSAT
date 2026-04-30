@@ -2304,8 +2304,8 @@ static int topological_repair_phase(NitroSat *ns, int max_steps)
     for (int i = 1; i <= ns->num_vars; ++i) best_x[i] = ns->x[i];
 
     int max_flips = max_steps * ns->num_vars;
-    /* Scale flip budget by clause density: dense instances need more attempts */
-    double density = (double)ns->num_clauses / ns->num_vars;
+    /* Scale flip budget by clause density: moderate density benefits from
+       more attempts; very high density is already caught by the early skip. */
     if (density > 2.0) max_flips = (int)(max_flips * density / 2.0);
     if (max_flips > 10000000) max_flips = 10000000;
     if (max_flips < 200000) max_flips = 200000;
