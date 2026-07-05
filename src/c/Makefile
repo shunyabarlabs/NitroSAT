@@ -1,11 +1,12 @@
 # NitroSAT Makefile
 # ==================
-# Supports building v1 and v2 on various hardware configurations
+# Supports building v1, v2, and disk-streaming v3 on various hardware configurations
 #
 # Usage:
-#   make                    # Build all (v1 + v2)
+#   make                    # Build all (v1 + v2 + v3)
 #   make v1                # Build only v1
 #   make v2                # Build only v2
+#   make v3                # Build disk-streaming v3
 #   make install           # Install to ~/.local/bin
 #   make clean             # Remove build artifacts
 #
@@ -29,10 +30,12 @@ BUILD_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 # Source files
 V1_SRC = $(BUILD_DIR)v1/nitrosat.c
 V2_SRC = $(BUILD_DIR)v2/nitrosatv2.c
+V3_SRC = $(BUILD_DIR)v3/nitrosatv3.c
 
 # Output binaries
 V1_BIN = $(BUILD_DIR)v1/nitrosat
 V2_BIN = $(BUILD_DIR)v2/nitrosatv2
+V3_BIN = $(BUILD_DIR)v3/nitrosatv3
 
 # Architecture flags
 MARCH = native
@@ -54,13 +57,18 @@ CFLAGS += -march=$(MARCH) -std=c99
 LDFLAGS = -lm
 
 # Targets
-.PHONY: all v1 v2 clean install uninstall help
+.PHONY: all v1 v2 v3 test-v3 clean install uninstall help
 
-all: v1 v2
+all: v1 v2 v3
 
 v1: $(V1_BIN)
 
 v2: $(V2_BIN)
+
+v3: $(V3_BIN)
+
+test-v3: $(V3_BIN)
+	bash $(BUILD_DIR)../../tests/v3/test_v3.sh $(V3_BIN)
 
 $(V1_BIN): $(V1_SRC)
 	@echo "Building NitroSAT v1..."
@@ -74,18 +82,25 @@ $(V2_BIN): $(V2_SRC)
 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
 	@echo "Built: $@"
 
+$(V3_BIN): $(V3_SRC)
+	@echo "Building NitroSAT v3 (disk streaming)..."
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+	@echo "Built: $@"
+
 clean:
-	rm -f $(V1_BIN) $(V2_BIN)
+	rm -f $(V1_BIN) $(V2_BIN) $(V3_BIN)
 	@echo "Cleaned build artifacts"
 
-install: v1 v2
+install: v1 v2 v3
 	@mkdir -p $(PREFIX)
 	cp $(V1_BIN) $(PREFIX)/nitrosat
 	cp $(V2_BIN) $(PREFIX)/nitrosatv2
-	@echo "Installed to $(PREFIX): nitrosat, nitrosatv2"
+	cp $(V3_BIN) $(PREFIX)/nitrosatv3
+	@echo "Installed to $(PREFIX): nitrosat, nitrosatv2, nitrosatv3"
 
 uninstall:
-	rm -f $(PREFIX)/nitrosat $(PREFIX)/nitrosatv2
+	rm -f $(PREFIX)/nitrosat $(PREFIX)/nitrosatv2 $(PREFIX)/nitrosatv3
 	@echo "Uninstalled from $(PREFIX)"
 
 help:
@@ -93,9 +108,11 @@ help:
 	@echo "================="
 	@echo ""
 	@echo "Targets:"
-	@echo "  all         Build v1 and v2 (default)"
+	@echo "  all         Build v1, v2, and v3 (default)"
 	@echo "  v1          Build NitroSAT v1"
 	@echo "  v2          Build NitroSAT v2"
+	@echo "  v3          Build disk-streaming NitroSAT v3"
+	@echo "  test-v3     Run V3 end-to-end tests"
 	@echo "  clean       Remove build artifacts"
 	@echo "  install     Install to ~/.local/bin"
 	@echo "  uninstall   Remove installed binaries"

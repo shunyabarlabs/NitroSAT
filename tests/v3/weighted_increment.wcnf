@@ -1,0 +1,4 @@
+c may be appended to a CNF or WCNF store
+p wcnf 5 2 20
+20 5 0
+7 -1 -5 0

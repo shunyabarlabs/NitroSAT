@@ -74,6 +74,20 @@ See [MATH.md](MATH.md) for the complete mathematical theory.
 
 ## Quick Start
 
+For inputs too large to hold clause state in RAM, use the V3 disk-streaming
+solver. V2 remains the feature-complete in-memory solver.
+
+```bash
+make -C src/c v3
+src/c/v3/nitrosatv3 base.cnf --add incremental.cnf \
+  --store formula.nsv3 --solution assignment.sol
+```
+
+V3 accepts raw CNF and WCNF, uses 64-bit clause/literal totals, supports
+transactional incremental constraint files, and bounds memory by variable
+count plus configurable batch and active-clause limits. See
+[the V3 documentation](src/c/v3/README.md).
+
 ### 1. Compile
 
 ```bash

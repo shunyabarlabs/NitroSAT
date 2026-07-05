@@ -1,0 +1,5 @@
+c constraints added after the base formula
+p cnf 5 3
+-2 0
+3 0
+5 0

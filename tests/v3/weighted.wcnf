@@ -1,0 +1,5 @@
+c hard x1, weighted choice between x2 and not-x2
+p wcnf 2 3 10
+10 1 0
+5 2 0
+3 -2 0
