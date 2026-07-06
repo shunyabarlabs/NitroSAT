@@ -156,6 +156,15 @@ transactional incremental constraint files, and bounds memory by variable
 count plus configurable batch and active-clause limits. See
 [the V3 documentation](src/c/v3/README.md).
 
+### Executable tutorial library
+
+The [NitroSAT tutorial library](docs/tutorials/README.md) contains tested,
+runnable examples for Sudoku, workforce scheduling, university timetabling,
+vehicle assignment, meeting rooms, graph coloring, Kubernetes pod placement,
+product configuration, exam scheduling, and nurse rostering. Every tutorial
+follows the same model-to-result workflow and is executed in CI to prevent
+documentation drift.
+
 ### 1. Compile
 
 ```bash

@@ -1,0 +1,33 @@
+name: V3 executable tutorials
+
+on:
+  push:
+    paths:
+      - "src/c/v3/**"
+      - "examples/v3/**"
+      - "docs/tutorials/**"
+      - "docs/TUTORIAL_SUDOKU_AND_WORKFORCE_V3.md"
+      - "tests/v3/**"
+      - ".github/workflows/v3-tutorials.yml"
+  pull_request:
+    paths:
+      - "src/c/v3/**"
+      - "examples/v3/**"
+      - "docs/tutorials/**"
+      - "docs/TUTORIAL_SUDOKU_AND_WORKFORCE_V3.md"
+      - "tests/v3/**"
+
+jobs:
+  tutorials:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build NitroSAT V3
+        run: make -C src/c v3
+      - name: Run V3 regression suite
+        run: make -C src/c test-v3
+      - name: Run exact-mode tests
+        run: python3 tests/v3/test_exact.py
+      - name: Execute every tutorial
+        run: bash tests/v3/test_tutorials.sh src/c/v3/nitrosatv3
