@@ -36,6 +36,74 @@ Some notable results:
 | **Large Phase Transition** | 200,000 | 852,000 | 4.26 | 11.2 min | 99.20% |
 | **Ramsey R(5,5,5)** | ~4,760 | 354,890 | 74.56 | 3.5s | 100% |
 | **Small-World Lattice** | 360,000 | 1,354,800 | 3.76 | 62.75s | 100% |
+| **Planted Random 3-SAT (V3 indexed)** | 100 | 923 | 9.23 | 24ms | 100% |
+
+---
+
+### V3 indexed-finisher sanity check
+
+A reproducible planted random 3-SAT instance (`seed=20260706`) with 100
+variables and 923 clauses was solved completely by V3 after 209 indexed flips:
+
+| Metric | Result |
+|---|---:|
+| Clauses satisfied | 923 / 923 |
+| Indexed flips | 209 |
+| Solve time | 24ms |
+| Peak RSS | 2.4 MiB |
+| Independent assignment verification | Passed |
+| Exact fallback required | No |
+
+The instance was generated around a planted assignment, so satisfiability was
+guaranteed by construction. The returned assignment was then checked against
+all 923 clauses independently. This is a focused correctness and integration
+test, not evidence that every instance at the same clause-to-variable ratio is
+equally easy.
+
+```bash
+src/c/v3/nitrosatv3 planted-100v-923c.cnf \
+  --epochs 20 \
+  --indexed-finisher \
+  --indexed-flips 50000 \
+  --indexed-checkpoint 500 \
+  --solution assignment.sol
+```
+
+### Planted-SAT matrix
+
+V3 was also tested on twelve reproducible planted 3-SAT instances across
+multiple sizes and clause densities. The standard run used 10 epochs, a
+100,000-flip indexed budget, and checkpoints every 500 flips.
+
+| Variables | Clauses | Ratio | Seed | Result | Indexed flips | Solve time |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 430 | 4.30 | 101 | 430 / 430 | 14,555 | 400ms |
+| 100 | 923 | 9.23 | 102 | 923 / 923 | 339 | 32ms |
+| 100 | 2,000 | 20.00 | 103 | 2,000 / 2,000 | 59 | 13ms |
+| 250 | 1,065 | 4.26 | 201 | 1,065 / 1,065* | 40,997 | 1.46s |
+| 250 | 2,308 | 9.23 | 202 | 2,308 / 2,308 | 487 | 47ms |
+| 250 | 5,000 | 20.00 | 203 | 5,000 / 5,000 | 234 | 53ms |
+| 500 | 2,130 | 4.26 | 301 | 2,130 / 2,130 | 46,178 | 2.08s |
+| 500 | 4,615 | 9.23 | 302 | 4,615 / 4,615 | 535 | 64ms |
+| 500 | 10,000 | 20.00 | 303 | 10,000 / 10,000 | 345 | 92ms |
+| 1,000 | 4,260 | 4.26 | 401 | 4,259 / 4,260† | 500,000 | 25.37s |
+| 1,000 | 9,230 | 9.23 | 402 | 9,230 / 9,230 | 1,043 | 131ms |
+| 2,000 | 18,460 | 9.23 | 501 | 18,460 / 18,460 | 1,874 | 253ms |
+
+\* The 250-variable ratio-4.26 case initially reached 1,064/1,065 with the
+standard budget and solved after increasing the budget to 250,000 flips and 20
+epochs. Its final assignment was independently verified.
+
+† The 1,000-variable ratio-4.26 case reached 4,256/4,260 at 100,000 flips,
+4,258/4,260 at 250,000 flips, and 4,259/4,260 at 500,000 flips. It is retained
+as a visible failure rather than reported as solved.
+
+Eleven of the twelve instances were solved completely, and their returned
+assignments were checked independently against every clause. The difficult
+cases cluster near the random 3-SAT phase-transition ratio around 4.26;
+higher-density planted instances expose a stronger planted signal and were
+easier for this search configuration. These are planted satisfiable instances,
+not a substitute for an independently sourced industrial benchmark suite.
 
 ---
 
