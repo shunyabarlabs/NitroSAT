@@ -19,8 +19,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "cdcl_internal.h"
 
 #define STORE_VERSION 2u
 #define STORE_HEADER_SIZE 40u
@@ -35,6 +39,11 @@
 #define DEFAULT_FINISHER_MAX_CLAUSES UINT64_C(100000)
 #define DEFAULT_FINISHER_BATCH_FLIPS 64u
 #define DEFAULT_LR 0.015
+#define DEFAULT_EXACT_MAX_CLAUSES UINT64_C(1000000)
+#define DEFAULT_EXACT_MEMORY_MB UINT64_C(1024)
+#define DEFAULT_EXACT_MAX_CONFLICTS UINT64_C(5000000)
+#define DEFAULT_INDEXED_FLIPS UINT64_C(200000)
+#define DEFAULT_INDEXED_CHECKPOINT 1000u
 #define MAX_CLAUSE_LITERALS UINT32_MAX
 
 static const unsigned char STORE_MAGIC[8] = {'N','S','A','T','V','3','\r','\n'};
@@ -91,6 +100,13 @@ typedef struct {
 } Verification;
 
 typedef struct {
+    int fd;
+    uint64_t *starts;
+    uint32_t num_vars;
+    uint64_t entries;
+} OccurrenceIndex;
+
+typedef struct {
     const char *base_cnf;
     const char **add_files;
     int add_count;
@@ -109,6 +125,15 @@ typedef struct {
     double learning_rate;
     uint64_t seed;
     int json;
+    int exact;
+    const char *proof_path;
+    const char *weights_path;
+    uint64_t exact_max_clauses;
+    uint64_t exact_memory_mb;
+    uint64_t exact_max_conflicts;
+    int indexed_finisher;
+    uint64_t indexed_flips;
+    uint32_t indexed_checkpoint;
 } Options;
 
 static void put_u32(unsigned char *p, uint32_t v)
@@ -436,6 +461,111 @@ static void reader_close(ClauseReader *r)
     if (r->fp) fclose(r->fp);
     free(r->lits);
     memset(r, 0, sizeof(*r));
+}
+
+static void occurrence_index_close(OccurrenceIndex *index)
+{
+    if (index->fd >= 0) close(index->fd);
+    free(index->starts);
+    memset(index, 0, sizeof(*index));
+    index->fd = -1;
+}
+
+static int occurrence_index_build(ClauseReader *reader, OccurrenceIndex *index)
+{
+    memset(index, 0, sizeof(*index));
+    index->fd = -1;
+    index->num_vars = reader->meta.num_vars;
+    size_t vars = (size_t)index->num_vars + 2u;
+    if (vars > SIZE_MAX / sizeof(uint64_t)) { errno = EOVERFLOW; return 0; }
+    uint64_t *counts = calloc(vars, sizeof(*counts));
+    index->starts = calloc(vars, sizeof(*index->starts));
+    uint64_t *cursor = calloc(vars, sizeof(*cursor));
+    if (!counts || !index->starts || !cursor) {
+        free(counts); free(cursor); occurrence_index_close(index); return 0;
+    }
+
+    if (!reader_rewind(reader)) goto fail;
+    const int32_t *lits;
+    uint32_t n, flags;
+    uint64_t weight;
+    int status;
+    while ((status = reader_next(reader, &lits, &n, &weight, &flags)) > 0) {
+        (void)weight; (void)flags;
+        for (uint32_t i = 0; i < n; ++i) {
+            uint32_t v = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
+            if (counts[v] == UINT64_MAX) { errno = EOVERFLOW; goto fail; }
+            counts[v]++;
+        }
+    }
+    if (status < 0) goto fail;
+    for (uint32_t v = 1; v <= index->num_vars; ++v) {
+        index->starts[v] = index->entries;
+        if (UINT64_MAX - index->entries < counts[v]) { errno = EOVERFLOW; goto fail; }
+        index->entries += counts[v];
+    }
+    index->starts[index->num_vars + 1u] = index->entries;
+    memcpy(cursor, index->starts, vars * sizeof(*cursor));
+    if (index->entries > SIZE_MAX / sizeof(uint64_t) ||
+        index->entries > (uint64_t)INT64_MAX / sizeof(uint64_t)) {
+        errno = EOVERFLOW; goto fail;
+    }
+
+    char path[] = "/tmp/nitrosat-occ-XXXXXX";
+    index->fd = mkstemp(path);
+    if (index->fd < 0) goto fail;
+    unlink(path);
+    size_t bytes = (size_t)index->entries * sizeof(uint64_t);
+    if (ftruncate(index->fd, (off_t)bytes) != 0) goto fail;
+    uint64_t *mapped = NULL;
+    if (bytes) {
+        mapped = mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, index->fd, 0);
+        if (mapped == MAP_FAILED) { mapped = NULL; goto fail; }
+    }
+    if (!reader_rewind(reader)) { if (mapped) munmap(mapped, bytes); goto fail; }
+    while (1) {
+        off_t clause_offset = ftello(reader->fp);
+        if (clause_offset < 0) { status = -1; break; }
+        status = reader_next(reader, &lits, &n, &weight, &flags);
+        if (status <= 0) break;
+        for (uint32_t i = 0; i < n; ++i) {
+            uint32_t v = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
+            mapped[cursor[v]++] = (uint64_t)clause_offset;
+        }
+    }
+    if (status < 0 || (mapped && msync(mapped, bytes, MS_SYNC) != 0)) {
+        if (mapped) munmap(mapped, bytes);
+        goto fail;
+    }
+    if (mapped) {
+        (void)posix_madvise(mapped, bytes, POSIX_MADV_DONTNEED);
+        munmap(mapped, bytes);
+    }
+    free(counts); free(cursor);
+    return 1;
+
+fail:
+    free(counts); free(cursor); occurrence_index_close(index);
+    return 0;
+}
+
+static int read_clause_at(FILE *fp, uint64_t offset, int32_t **lits, size_t *capacity,
+                          uint32_t *count, uint64_t *weight, uint32_t *flags)
+{
+    if (offset > (uint64_t)INT64_MAX || fseeko(fp, (off_t)offset, SEEK_SET) != 0) return 0;
+    unsigned char b[8];
+    if (fread(b, 1, 8, fp) != 8) return 0;
+    uint32_t n = get_u32(b);
+    *flags = get_u32(b + 4);
+    if (fread(b, 1, 8, fp) != 8) return 0;
+    *weight = get_u64(b);
+    if (!grow_literals(lits, capacity, n)) return 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        if (fread(b, 1, 4, fp) != 4) return 0;
+        (*lits)[i] = (int32_t)get_u32(b);
+    }
+    *count = n;
+    return 1;
 }
 
 static int validate_store_file(const char *path, const StoreMeta *expected)
@@ -918,6 +1048,217 @@ static int streaming_make_break_finisher(ClauseReader *reader, SolverState *solv
     return 1;
 }
 
+static int grow_offsets(uint64_t **offsets, size_t *capacity, size_t need)
+{
+    if (need <= *capacity) return 1;
+    size_t next = *capacity ? *capacity : 256u;
+    while (next < need) {
+        if (next > SIZE_MAX / 2u) { errno = EOVERFLOW; return 0; }
+        next *= 2u;
+    }
+    uint64_t *grown = realloc(*offsets, next * sizeof(*grown));
+    if (!grown) return 0;
+    *offsets = grown; *capacity = next;
+    return 1;
+}
+
+static uint32_t clause_sat_count_after_flip(const int32_t *lits, uint32_t n,
+                                             const SolverState *solver, uint32_t flip_var)
+{
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < n; ++i) {
+        uint32_t v = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
+        double x = solver->x[v];
+        if (v == flip_var) x = x > 0.5 ? 0.001 : 0.999;
+        if (literal_is_satisfied(lits[i], x)) count++;
+    }
+    return count;
+}
+
+static int occurrence_offsets(const OccurrenceIndex *index, uint32_t var,
+                              uint64_t **buffer, size_t *capacity, size_t *count)
+{
+    uint64_t begin = index->starts[var], end = index->starts[var + 1u];
+    if (end < begin || end - begin > SIZE_MAX) { errno = EOVERFLOW; return 0; }
+    *count = (size_t)(end - begin);
+    if (!grow_offsets(buffer, capacity, *count)) return 0;
+    size_t bytes = *count * sizeof(**buffer);
+    off_t position = (off_t)(begin * sizeof(**buffer));
+    size_t done = 0;
+    while (done < bytes) {
+        ssize_t got = pread(index->fd, (unsigned char *)*buffer + done, bytes - done,
+                            position + (off_t)done);
+        if (got <= 0) return 0;
+        done += (size_t)got;
+    }
+    return 1;
+}
+
+static int collect_unsatisfied_pool(ClauseReader *reader, SolverState *solver,
+                                    uint64_t *pool, uint32_t pool_capacity,
+                                    uint32_t *pool_size, Verification *result)
+{
+    if (!reader_rewind(reader)) return 0;
+    memset(result, 0, sizeof(*result));
+    *pool_size = 0;
+    uint64_t unsat_seen = 0;
+    const int32_t *lits;
+    uint32_t n, flags;
+    uint64_t weight;
+    int status;
+    while (1) {
+        off_t offset = ftello(reader->fp);
+        if (offset < 0) return 0;
+        status = reader_next(reader, &lits, &n, &weight, &flags);
+        if (status <= 0) break;
+        int sat = clause_sat_count_after_flip(lits, n, solver, 0) != 0;
+        result->satisfied += (uint64_t)sat;
+        if (!(flags & CLAUSE_FLAG_HARD)) {
+            add_cost(&result->total_soft_weight, weight, &result->cost_overflow);
+            if (!sat) {
+                result->soft_unsatisfied++;
+                add_cost(&result->soft_cost, weight, &result->cost_overflow);
+            }
+        } else if (!sat) result->hard_unsatisfied++;
+        if (!sat) {
+            unsat_seen++;
+            if (*pool_size < pool_capacity) pool[(*pool_size)++] = (uint64_t)offset;
+            else {
+                uint64_t pick = rng_next(solver) % unsat_seen;
+                if (pick < pool_capacity) pool[pick] = (uint64_t)offset;
+            }
+        }
+    }
+    return status == 0 && reader->clauses_read == reader->meta.num_clauses;
+}
+
+static int indexed_walksat_finisher(const char *store_path, ClauseReader *reader,
+                                    SolverState *solver, uint64_t max_flips,
+                                    uint32_t checkpoint_interval, uint32_t pool_capacity,
+                                    Verification *best, int *have_best, double *best_x,
+                                    uint64_t *flips_run)
+{
+    OccurrenceIndex index;
+    if (!occurrence_index_build(reader, &index)) return 0;
+    FILE *random_store = fopen(store_path, "rb");
+    uint64_t *pool = malloc((size_t)pool_capacity * sizeof(*pool));
+    uint64_t *occurrences = NULL;
+    size_t occurrence_capacity = 0;
+    int32_t *clause = NULL;
+    size_t clause_capacity = 0;
+    int32_t *target_clause = NULL;
+    size_t target_capacity = 0;
+    if (!random_store || !pool) {
+        if (random_store) fclose(random_store);
+        free(pool); occurrence_index_close(&index); return 0;
+    }
+
+    uint32_t pool_size = 0;
+    Verification current;
+    if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity, &pool_size, &current))
+        goto fail;
+    retain_best(&current, best, have_best, best_x, solver);
+    uint32_t n, flags;
+    uint64_t weight;
+
+    uint32_t stale_tries = 0;
+    uint64_t attempts = 0;
+    uint64_t max_attempts = max_flips > UINT64_MAX / 10u ? UINT64_MAX : max_flips * 10u;
+    while (*flips_run < max_flips && pool_size && attempts++ < max_attempts) {
+        uint32_t target_position = (uint32_t)(rng_next(solver) % pool_size);
+        uint64_t target_offset = pool[target_position];
+        if (!read_clause_at(random_store, target_offset, &target_clause, &target_capacity,
+                            &n, &weight, &flags)) goto fail;
+        uint32_t target_n = n;
+        if (clause_sat_count_after_flip(target_clause, target_n, solver, 0)) {
+            pool[target_position] = pool[--pool_size];
+            if (++stale_tries > pool_size * 2u) {
+                if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
+                                              &pool_size, &current)) goto fail;
+                retain_best(&current, best, have_best, best_x, solver);
+                stale_tries = 0;
+            }
+            continue;
+        }
+        stale_tries = 0;
+
+        uint32_t selected = 0;
+        int64_t best_gain = INT64_MIN;
+        if (target_n && rng_unit(solver) < 0.15) {
+            int32_t lit = target_clause[rng_next(solver) % target_n];
+            selected = (uint32_t)(lit < 0 ? -(int64_t)lit : lit);
+        } else {
+            for (uint32_t candidate = 0; candidate < target_n; ++candidate) {
+                uint32_t var = (uint32_t)(target_clause[candidate] < 0
+                                       ? -(int64_t)target_clause[candidate] : target_clause[candidate]);
+                size_t occurrence_count;
+                if (!occurrence_offsets(&index, var, &occurrences, &occurrence_capacity,
+                                        &occurrence_count)) goto fail;
+                int64_t gain = 0;
+                uint64_t previous = UINT64_MAX;
+                for (size_t i = 0; i < occurrence_count; ++i) {
+                    uint64_t offset = occurrences[i];
+                    if (offset == previous) continue;
+                    previous = offset;
+                    if (!read_clause_at(random_store, offset, &clause, &clause_capacity,
+                                        &n, &weight, &flags)) goto fail;
+                    uint32_t before = clause_sat_count_after_flip(clause, n, solver, 0);
+                    uint32_t after = clause_sat_count_after_flip(clause, n, solver, var);
+                    if (!before && after) gain++;
+                    else if (before && !after) gain--;
+                }
+                if (gain > best_gain || (gain == best_gain && (rng_next(solver) & 1u))) {
+                    best_gain = gain; selected = var;
+                }
+            }
+        }
+        if (!selected) break;
+        solver->x[selected] = solver->x[selected] > 0.5 ? 0.001 : 0.999;
+        (*flips_run)++;
+
+        size_t occurrence_count;
+        if (!occurrence_offsets(&index, selected, &occurrences, &occurrence_capacity,
+                                &occurrence_count)) goto fail;
+        uint64_t previous = UINT64_MAX;
+        int replaced_target = 0;
+        for (size_t i = 0; i < occurrence_count; ++i) {
+            uint64_t offset = occurrences[i];
+            if (offset == previous) continue;
+            previous = offset;
+            if (!read_clause_at(random_store, offset, &clause, &clause_capacity,
+                                &n, &weight, &flags)) goto fail;
+            if (!clause_sat_count_after_flip(clause, n, solver, 0)) {
+                if (!replaced_target) {
+                    pool[target_position] = offset;
+                    replaced_target = 1;
+                } else if (pool_size < pool_capacity) pool[pool_size++] = offset;
+                else pool[rng_next(solver) % pool_capacity] = offset;
+            }
+        }
+        if (!replaced_target) pool[target_position] = pool[--pool_size];
+
+        if (*flips_run % checkpoint_interval == 0) {
+            if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
+                                          &pool_size, &current)) goto fail;
+            retain_best(&current, best, have_best, best_x, solver);
+            if (current.satisfied == reader->meta.num_clauses) break;
+        }
+    }
+    {
+        if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
+                                      &pool_size, &current)) goto fail;
+        retain_best(&current, best, have_best, best_x, solver);
+    }
+    fclose(random_store); free(pool); free(occurrences); free(clause); free(target_clause);
+    occurrence_index_close(&index);
+    return 1;
+
+fail:
+    fclose(random_store); free(pool); free(occurrences); free(clause); free(target_clause);
+    occurrence_index_close(&index);
+    return 0;
+}
+
 static double elapsed_ms(const struct timespec *a, const struct timespec *b)
 {
     return (double)(b->tv_sec - a->tv_sec) * 1000.0 +
@@ -955,16 +1296,28 @@ static void usage(const char *argv0)
         "  --finisher-passes N     global streamed make/break flips (default: %u)\n"
         "  --finisher-batch-flips N  positive-gain flips per pass (default: %u)\n"
         "  --finisher-max-clauses N  clause ceiling for finisher (default: %" PRIu64 ")\n"
+        "  --indexed-finisher      disk-indexed WalkSAT finisher (CNF only)\n"
+        "  --indexed-flips N       indexed-finisher flip budget (default: %" PRIu64 ")\n"
+        "  --indexed-checkpoint N  full verification interval (default: %u)\n"
         "  --batch-clauses N       optimizer batch size (default: %u)\n"
         "  --active-clauses N      local-repair clause bound (default: %u)\n"
         "  --active-literals N     local-repair literal bound (default: %u)\n"
         "  --learning-rate X       optimizer learning rate (default: %.3f)\n"
         "  --seed N                deterministic random seed\n"
-        "  --cinematic             text output instead of JSON\n",
+        "  --cinematic             text output instead of JSON\n"
+        "  --exact                 run formal CDCL solver if heuristic fails\n"
+        "  --proof FILE            emit DRAT proof of unsatisfiability to FILE\n"
+        "  --weights FILE          emit heuristic variable importance weights to FILE\n"
+        "  --exact-max-clauses N   exact-mode clause ceiling (default: %" PRIu64 ")\n"
+        "  --exact-memory-mb N     exact CDCL memory ceiling (default: %" PRIu64 ")\n"
+        "  --exact-max-conflicts N exact CDCL conflict ceiling (default: %" PRIu64 ")\n",
         argv0, argv0, DEFAULT_EPOCHS, DEFAULT_FINISHER_PASSES,
         DEFAULT_FINISHER_BATCH_FLIPS,
-        DEFAULT_FINISHER_MAX_CLAUSES, DEFAULT_BATCH_CLAUSES,
-        DEFAULT_ACTIVE_CLAUSES, DEFAULT_ACTIVE_LITERALS, DEFAULT_LR);
+        DEFAULT_FINISHER_MAX_CLAUSES, DEFAULT_INDEXED_FLIPS, DEFAULT_INDEXED_CHECKPOINT,
+        DEFAULT_BATCH_CLAUSES,
+        DEFAULT_ACTIVE_CLAUSES, DEFAULT_ACTIVE_LITERALS, DEFAULT_LR,
+        DEFAULT_EXACT_MAX_CLAUSES, DEFAULT_EXACT_MEMORY_MB,
+        DEFAULT_EXACT_MAX_CONFLICTS);
 }
 
 static int parse_options(int argc, char **argv, Options *o)
@@ -976,6 +1329,11 @@ static int parse_options(int argc, char **argv, Options *o)
     o->batch_clauses = DEFAULT_BATCH_CLAUSES;
     o->active_clauses = DEFAULT_ACTIVE_CLAUSES; o->active_literals = DEFAULT_ACTIVE_LITERALS;
     o->learning_rate = DEFAULT_LR; o->seed = 42; o->json = 1;
+    o->exact_max_clauses = DEFAULT_EXACT_MAX_CLAUSES;
+    o->exact_memory_mb = DEFAULT_EXACT_MEMORY_MB;
+    o->exact_max_conflicts = DEFAULT_EXACT_MAX_CONFLICTS;
+    o->indexed_flips = DEFAULT_INDEXED_FLIPS;
+    o->indexed_checkpoint = DEFAULT_INDEXED_CHECKPOINT;
     if (argc < 2) return 0;
     o->add_files = calloc((size_t)argc, sizeof(char *));
     if (!o->add_files) return 0;
@@ -993,6 +1351,15 @@ static int parse_options(int argc, char **argv, Options *o)
         else if (!strcmp(argv[i], "--keep-store")) o->keep_store = 1;
         else if (!strcmp(argv[i], "--store-only")) o->store_only = 1;
         else if (!strcmp(argv[i], "--cinematic")) o->json = 0;
+        else if (!strcmp(argv[i], "--indexed-finisher")) o->indexed_finisher = 1;
+        else if (!strcmp(argv[i], "--indexed-flips") && i + 1 < argc && parse_u64(argv[i+1], &o->indexed_flips)) i++;
+        else if (!strcmp(argv[i], "--indexed-checkpoint") && i + 1 < argc && parse_u32(argv[i+1], &o->indexed_checkpoint)) i++;
+        else if (!strcmp(argv[i], "--exact")) o->exact = 1;
+        else if (!strcmp(argv[i], "--proof") && i + 1 < argc) o->proof_path = argv[++i];
+        else if (!strcmp(argv[i], "--weights") && i + 1 < argc) o->weights_path = argv[++i];
+        else if (!strcmp(argv[i], "--exact-max-clauses") && i + 1 < argc && parse_u64(argv[i+1], &o->exact_max_clauses)) i++;
+        else if (!strcmp(argv[i], "--exact-memory-mb") && i + 1 < argc && parse_u64(argv[i+1], &o->exact_memory_mb)) i++;
+        else if (!strcmp(argv[i], "--exact-max-conflicts") && i + 1 < argc && parse_u64(argv[i+1], &o->exact_max_conflicts)) i++;
         else if (!strcmp(argv[i], "--epochs") && i + 1 < argc && parse_u32(argv[i+1], &o->epochs)) i++;
         else if (!strcmp(argv[i], "--finisher-passes") && i + 1 < argc && parse_u32(argv[i+1], &o->finisher_passes)) i++;
         else if (!strcmp(argv[i], "--finisher-batch-flips") && i + 1 < argc && parse_u32(argv[i+1], &o->finisher_batch_flips)) i++;
@@ -1006,8 +1373,12 @@ static int parse_options(int argc, char **argv, Options *o)
             if (errno || end == argv[i] || *end || !(o->learning_rate > 0.0)) return 0;
         } else return 0;
     }
+    if (o->proof_path) o->exact = 1;
     return o->batch_clauses > 0 && o->active_clauses > 0 &&
-           o->active_literals > 0 && o->finisher_batch_flips > 0;
+           o->active_literals > 0 && o->finisher_batch_flips > 0 &&
+           o->exact_max_clauses > 0 && o->exact_memory_mb > 0 &&
+           o->exact_max_conflicts > 0 && o->indexed_flips > 0 &&
+           o->indexed_checkpoint > 0;
 }
 
 static int write_solution(const char *path, const SolverState *solver)
@@ -1022,6 +1393,128 @@ static int write_solution(const char *path, const SolverState *solver)
     int ok = fprintf(fp, "0\n") >= 0;
     if (fclose(fp) != 0) ok = 0;
     return ok;
+}
+
+static int write_importance(const char *path, const SolverState *solver, const double *x)
+{
+    if (!path) return 1;
+    FILE *fp = fopen(path, "w");
+    if (!fp) return 0;
+    for (uint32_t i = 1; i <= solver->num_vars; ++i) {
+        double frustration = 1.0 - 2.0 * fabs(x[i] - 0.5);
+        double degree = solver->degrees[i];
+        double importance = frustration * 10.0 + degree;
+        if (fprintf(fp, "%u %.6f %.6f %.6f\n", i, frustration, degree, importance) < 0) {
+            fclose(fp);
+            return 0;
+        }
+    }
+    int ok = 1;
+    if (fclose(fp) != 0) ok = 0;
+    return ok;
+}
+
+static int streaming_cdcl_exact(ClauseReader *reader, SolverState *solver,
+                                Verification *best, int *have_best, double *best_x,
+                                int *exact_result, int *proof_generated,
+                                const Options *opt)
+{
+    if (!reader_rewind(reader)) return 0;
+    if (opt->exact_memory_mb > SIZE_MAX / (1024u * 1024u)) { errno = EOVERFLOW; return 0; }
+    size_t memory_limit = (size_t)opt->exact_memory_mb * 1024u * 1024u;
+    cdcl_t *cdcl = cdcl_new(solver->num_vars, memory_limit, opt->exact_max_conflicts);
+    if (!cdcl) {
+        if (errno == E2BIG) { *exact_result = CDCL_RESULT_LIMIT; return 1; }
+        return 0;
+    }
+    char *proof_temp = NULL;
+    if (opt->proof_path) {
+        size_t path_len = strlen(opt->proof_path);
+        if (path_len > SIZE_MAX - 16u) { cdcl_free(cdcl); errno = EOVERFLOW; return 0; }
+        proof_temp = malloc(path_len + 16u);
+        if (!proof_temp) { cdcl_free(cdcl); errno = ENOMEM; return 0; }
+        snprintf(proof_temp, path_len + 16u, "%s.tmp.XXXXXX", opt->proof_path);
+        int fd = mkstemp(proof_temp);
+        if (fd < 0) { free(proof_temp); cdcl_free(cdcl); return 0; }
+        cdcl->drat_fp = fdopen(fd, "w");
+        if (!cdcl->drat_fp) { close(fd); unlink(proof_temp); free(proof_temp); cdcl_free(cdcl); return 0; }
+    }
+
+    for (uint32_t i = 1; i <= solver->num_vars; ++i) {
+        double frustration = 1.0 - 2.0 * fabs(solver->x[i] - 0.5);
+        cdcl->activity[i] = frustration * 10.0 + solver->degrees[i];
+        cdcl->phase[i] = solver->x[i] > 0.5 ? 1 : -1;
+    }
+
+    const int32_t *lits;
+    uint32_t n, flags;
+    uint64_t weight;
+    int status;
+    int32_t *temp_lits = NULL;
+    size_t temp_capacity = 0;
+
+    while ((status = reader_next(reader, &lits, &n, &weight, &flags)) > 0) {
+        if ((flags & CLAUSE_FLAG_HARD) || !(flags & CLAUSE_FLAG_WEIGHTED)) {
+            if (n > temp_capacity) {
+                int32_t *new_lits = realloc(temp_lits, (size_t)n * sizeof(*new_lits));
+                if (!new_lits) { errno = ENOMEM; status = -1; break; }
+                temp_lits = new_lits;
+                temp_capacity = n;
+            }
+            for (uint32_t i = 0; i < n; ++i) temp_lits[i] = lits[i];
+            if (!cdcl_add_clause(cdcl, temp_lits, n)) {
+                if (cdcl->oom || cdcl->proof_error) status = -1;
+                break;
+            }
+        }
+    }
+    if (status < 0) {
+        if (cdcl->drat_fp) fclose(cdcl->drat_fp);
+        if (proof_temp) unlink(proof_temp);
+        free(proof_temp); free(temp_lits); cdcl_free(cdcl); return 0;
+    }
+
+    int result = cdcl_solve(cdcl);
+    int solver_errno = cdcl->oom ? ENOMEM : EIO;
+    *exact_result = result;
+    if (result == 1) { // SAT
+        for (uint32_t i = 1; i <= solver->num_vars; ++i) {
+            solver->x[i] = cdcl->assigns[i] == 1 ? 0.999 : 0.001;
+        }
+        Verification current;
+        if (!verify_assignment(reader, solver, &current) ||
+            (!(reader->meta.flags & STORE_FLAG_WEIGHTED) &&
+             current.satisfied != reader->meta.num_clauses) ||
+            ((reader->meta.flags & STORE_FLAG_WEIGHTED) && current.hard_unsatisfied != 0)) {
+            errno = EPROTO;
+            if (cdcl->drat_fp) fclose(cdcl->drat_fp);
+            cdcl->drat_fp = NULL;
+            if (proof_temp) unlink(proof_temp);
+            free(proof_temp); free(temp_lits); cdcl_free(cdcl); return 0;
+        }
+        retain_best(&current, best, have_best, best_x, solver);
+    }
+    if (cdcl->drat_fp) {
+        int proof_ok = fflush(cdcl->drat_fp) == 0 && !ferror(cdcl->drat_fp);
+        if (fclose(cdcl->drat_fp) != 0) proof_ok = 0;
+        cdcl->drat_fp = NULL;
+        if (!proof_ok) {
+            unlink(proof_temp); free(proof_temp); free(temp_lits); cdcl_free(cdcl); return 0;
+        }
+        if (result == 0) {
+            if (rename(proof_temp, opt->proof_path) != 0) {
+                unlink(proof_temp); free(proof_temp); free(temp_lits); cdcl_free(cdcl); return 0;
+            }
+            *proof_generated = 1;
+        } else {
+            unlink(proof_temp);
+        }
+    }
+    free(proof_temp);
+    free(temp_lits);
+    cdcl_free(cdcl);
+    if (result == CDCL_RESULT_ERROR) { errno = solver_errno; return 0; }
+    return 1;
 }
 
 int main(int argc, char **argv)
@@ -1044,6 +1537,19 @@ int main(int argc, char **argv)
     int store_ok = opt.load_store ? load_or_extend_store(&opt, &meta) : create_store(&opt, &meta);
     if (!store_ok) { free(opt.add_files); return 2; }
     clock_gettime(CLOCK_MONOTONIC, &built);
+
+    if ((meta.flags & STORE_FLAG_WEIGHTED) && opt.proof_path) {
+        fprintf(stderr, "--proof is supported only for CNF; WCNF hard-clause proofs require an exported projection\n");
+        if (!opt.keep_store) unlink(opt.store_path);
+        free(opt.add_files);
+        return 2;
+    }
+    if ((meta.flags & STORE_FLAG_WEIGHTED) && opt.indexed_finisher) {
+        fprintf(stderr, "--indexed-finisher currently supports CNF only\n");
+        if (!opt.keep_store) unlink(opt.store_path);
+        free(opt.add_files);
+        return 2;
+    }
 
     if (opt.store_only) {
         if (opt.load_store && !validate_store_file(opt.store_path, &meta)) {
@@ -1101,9 +1607,24 @@ int main(int argc, char **argv)
         if (current.satisfied == meta.num_clauses) break;
     }
 
+    if (io_ok && !have_best) {
+        Verification initial;
+        io_ok = verify_assignment(&reader, &solver, &initial);
+        if (io_ok) retain_best(&initial, &best_verification, &have_best, best_x, &solver);
+    }
+
     Verification verification = {0};
     uint32_t finisher_passes_run = 0;
+    uint64_t indexed_flips_run = 0;
     if (io_ok && have_best && best_verification.satisfied < meta.num_clauses &&
+        opt.indexed_finisher && !weighted_store) {
+        memcpy(solver.x, best_x, ((size_t)meta.num_vars + 1) * sizeof(double));
+        io_ok = indexed_walksat_finisher(opt.store_path, &reader, &solver,
+                                         opt.indexed_flips, opt.indexed_checkpoint,
+                                         opt.active_clauses, &best_verification,
+                                         &have_best, best_x, &indexed_flips_run);
+        if (!io_ok) fprintf(stderr, "indexed finisher failed: %s\n", strerror(errno));
+    } else if (io_ok && have_best && best_verification.satisfied < meta.num_clauses &&
         opt.finisher_passes && meta.num_clauses <= opt.finisher_max_clauses) {
         memcpy(solver.x, best_x, ((size_t)meta.num_vars + 1) * sizeof(double));
         io_ok = streaming_make_break_finisher(&reader, &solver, opt.finisher_passes,
@@ -1111,12 +1632,41 @@ int main(int argc, char **argv)
                                               &best_verification, &have_best, best_x,
                                               &finisher_passes_run);
     }
+
+    double *importance_x = NULL;
+    if (io_ok && opt.weights_path) {
+        importance_x = malloc(((size_t)meta.num_vars + 1u) * sizeof(*importance_x));
+        if (!importance_x) io_ok = 0;
+        else if (have_best) memcpy(importance_x, best_x, ((size_t)meta.num_vars + 1u) * sizeof(*importance_x));
+        else memcpy(importance_x, solver.x, ((size_t)meta.num_vars + 1u) * sizeof(*importance_x));
+    }
+
+    int exact_attempted = 0;
+    int exact_result = CDCL_RESULT_NOT_RUN;
+    int proof_generated = 0;
+    if (io_ok && opt.exact && have_best && best_verification.satisfied < meta.num_clauses &&
+        (!weighted_store || best_verification.hard_unsatisfied > 0)) {
+        exact_attempted = 1;
+        if (meta.num_clauses > opt.exact_max_clauses) {
+            exact_result = CDCL_RESULT_LIMIT;
+        } else {
+            io_ok = streaming_cdcl_exact(&reader, &solver, &best_verification, &have_best, best_x,
+                                         &exact_result, &proof_generated, &opt);
+        }
+        if (!io_ok) fprintf(stderr, "exact solver failed: %s\n", strerror(errno));
+    }
+
     if (io_ok && have_best) {
         memcpy(solver.x, best_x, ((size_t)meta.num_vars + 1) * sizeof(double));
         verification = best_verification;
     } else if (io_ok) io_ok = verify_assignment(&reader, &solver, &verification);
-    if (io_ok && !write_solution(opt.solution_path, &solver)) {
+    if (io_ok && exact_result != 0 && !write_solution(opt.solution_path, &solver)) {
         fprintf(stderr, "cannot write solution %s: %s\n", opt.solution_path, strerror(errno));
+        io_ok = 0;
+    }
+    if (io_ok && !write_importance(opt.weights_path, &solver,
+                                    importance_x ? importance_x : solver.x)) {
+        fprintf(stderr, "cannot write weights %s: %s\n", opt.weights_path, strerror(errno));
         io_ok = 0;
     }
     clock_gettime(CLOCK_MONOTONIC, &finished);
@@ -1131,25 +1681,43 @@ int main(int argc, char **argv)
                           (double)opt.finisher_batch_flips *
                           (sizeof(uint32_t) + sizeof(double)) +
                           (double)opt.active_literals * sizeof(int32_t)) / (1024.0 * 1024.0);
+    double indexed_index_mb = opt.indexed_finisher
+        ? ((double)meta.num_literals * sizeof(uint64_t) +
+           ((double)meta.num_vars + 2.0) * sizeof(uint64_t)) / (1024.0 * 1024.0)
+        : 0.0;
+    resident_mb += indexed_index_mb;
     if (opt.json) {
-        printf("{\"solver\":\"NitroSAT V3\",\"format\":\"%s\",\"solved\":%s,"
+        const char *status_str = solved ? "SATISFIED" :
+                                 (exact_result == 0 ? (weighted_store ? "INFEASIBLE" : "UNSATISFIABLE") :
+                                 (exact_result == CDCL_RESULT_LIMIT ? "UNKNOWN" : "PARTIAL"));
+        printf("{\"solver\":\"NitroSAT V3\",\"format\":\"%s\",\"status\":\"%s\",\"solved\":%s,"
                "\"feasible\":%s,\"variables\":%u,"
                "\"clauses\":%" PRIu64 ",\"literals\":%" PRIu64 ","
                "\"satisfied\":%" PRIu64 ",\"unsatisfied\":%" PRIu64 ","
                "\"hard_unsatisfied\":%" PRIu64 ",\"soft_unsatisfied\":%" PRIu64 ","
                "\"soft_cost\":%" PRIu64 ",\"total_soft_weight\":%" PRIu64 ","
                "\"cost_overflow\":%s,"
-               "\"epochs\":%u,\"finisher_passes\":%u,\"increment_files\":%d,"
-               "\"bounded_memory_mb\":%.2f,"
+               "\"exact_attempted\":%s,\"exact_result\":\"%s\","
+               "\"proof_requested\":%s,\"proof_generated\":%s,"
+               "\"exact_memory_bounded\":%s,"
+               "\"epochs\":%u,\"finisher_passes\":%u,\"indexed_flips\":%" PRIu64 ",\"increment_files\":%d,"
+               "\"bounded_memory_mb\":%.2f,\"indexed_index_mb\":%.3f,"
                "\"store_build_ms\":%.3f,\"solve_ms\":%.3f}\n",
                (meta.flags & STORE_FLAG_WEIGHTED) ? "wcnf" : "cnf",
+               status_str,
                solved ? "true" : "false", feasible ? "true" : "false",
                meta.num_vars, meta.num_clauses, meta.num_literals,
                verification.satisfied, meta.num_clauses - verification.satisfied,
                verification.hard_unsatisfied, verification.soft_unsatisfied,
                verification.soft_cost, verification.total_soft_weight,
                verification.cost_overflow ? "true" : "false",
-               epochs_run, finisher_passes_run, opt.add_count, resident_mb,
+               exact_attempted ? "true" : "false",
+               exact_result == 1 ? "SAT" : (exact_result == 0 ? "UNSAT" :
+               (exact_result == CDCL_RESULT_LIMIT ? "LIMIT" : "NOT_RUN")),
+               opt.proof_path ? "true" : "false", proof_generated ? "true" : "false",
+               exact_attempted ? "false" : "true",
+               epochs_run, finisher_passes_run, indexed_flips_run, opt.add_count,
+               resident_mb, indexed_index_mb,
                elapsed_ms(&start, &built), elapsed_ms(&built, &finished));
     } else {
         printf("NitroSAT V3 (%s): %s\nVariables: %u  Clauses: %" PRIu64 "  Literals: %" PRIu64
@@ -1158,13 +1726,16 @@ int main(int argc, char **argv)
                "\nBounded solver allocation: %.2f MiB\n",
                (meta.flags & STORE_FLAG_WEIGHTED) ? "WCNF" : "CNF",
                solved ? "all clauses satisfied" :
+               (exact_result == 0 ? (weighted_store ? "hard clauses proven infeasible" :
+                                                      "proven UNSAT") :
                (weighted_store && feasible ? "weighted feasible assignment" :
-                                               "best assignment (not proven UNSAT)"),
+                                               "best assignment (not proven UNSAT)")),
                meta.num_vars, meta.num_clauses, meta.num_literals, verification.satisfied,
                meta.num_clauses - verification.satisfied, verification.hard_unsatisfied,
                verification.soft_cost, resident_mb);
     }
 
+    free(importance_x);
     free(best_x);
     reader_close(&reader); solver_free(&solver); cache_free(&cache);
     if (!opt.keep_store) unlink(opt.store_path);

@@ -64,6 +64,24 @@ The default finisher ceiling is 100,000 clauses. Larger instances skip this
 phase unless explicitly overridden, preventing accidental repeated scans of a
 billion-clause store.
 
+## Disk-indexed finisher
+
+Large CNF instances can opt into a temporary disk-backed variable occurrence
+index. This supports WalkSAT make/break flips without rescanning the entire
+formula for every move:
+
+```sh
+nitrosatv3 planted.cnf --epochs 20 --indexed-finisher \
+  --indexed-flips 200000 --indexed-checkpoint 1000
+```
+
+The index uses eight bytes per literal on disk and an eight-byte offset table
+per variable. Index construction temporarily maps the index, so
+`bounded_memory_mb` includes that peak bound and `indexed_index_mb` reports its
+contribution. Full streamed verification runs at every checkpoint and only
+verified improvements are retained. This path currently supports CNF only;
+WCNF requests are rejected rather than applying incorrect weighted semantics.
+
 An existing store can be solved again or extended transactionally without
 re-reading the base CNF:
 
