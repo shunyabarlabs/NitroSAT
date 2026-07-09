@@ -471,7 +471,7 @@ static void occurrence_index_close(OccurrenceIndex *index)
     index->fd = -1;
 }
 
-static int occurrence_index_build(ClauseReader *reader, OccurrenceIndex *index)
+static int occurrence_index_build(ClauseReader *reader, OccurrenceIndex *index, int hard_only)
 {
     memset(index, 0, sizeof(*index));
     index->fd = -1;
@@ -492,6 +492,7 @@ static int occurrence_index_build(ClauseReader *reader, OccurrenceIndex *index)
     int status;
     while ((status = reader_next(reader, &lits, &n, &weight, &flags)) > 0) {
         (void)weight; (void)flags;
+        if (hard_only && !(flags & CLAUSE_FLAG_HARD)) continue;
         for (uint32_t i = 0; i < n; ++i) {
             uint32_t v = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
             if (counts[v] == UINT64_MAX) { errno = EOVERFLOW; goto fail; }
@@ -528,6 +529,7 @@ static int occurrence_index_build(ClauseReader *reader, OccurrenceIndex *index)
         if (clause_offset < 0) { status = -1; break; }
         status = reader_next(reader, &lits, &n, &weight, &flags);
         if (status <= 0) break;
+        if (hard_only && !(flags & CLAUSE_FLAG_HARD)) continue;
         for (uint32_t i = 0; i < n; ++i) {
             uint32_t v = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
             mapped[cursor[v]++] = (uint64_t)clause_offset;
@@ -713,7 +715,7 @@ static void touch_gradient(SolverState *s, uint32_t var, double contribution)
     s->grad[var] += contribution;
 }
 
-static void apply_batch(SolverState *s, double lr)
+static void apply_batch(SolverState *s, double lr, double grad_clip)
 {
     if (!s->touched_count) return;
     s->batches++;
@@ -724,8 +726,8 @@ static void apply_batch(SolverState *s, double lr)
         uint32_t var = s->touched[i];
         double heat = exp(-0.5 * s->degrees[var] / (s->mean_degree + 1.0));
         double g = s->grad[var] * (1.0 + 0.1 * heat);
-        if (g > 1000.0) g = 1000.0;
-        if (g < -1000.0) g = -1000.0;
+        if (g > grad_clip) g = grad_clip;
+        if (g < -grad_clip) g = -grad_clip;
         s->m[var] = b1 * s->m[var] + (1.0 - b1) * g;
         s->v[var] = b2 * s->v[var] + (1.0 - b2) * g * g;
         s->x[var] -= lr * (s->m[var] / b1c) / (sqrt(s->v[var] / b2c) + 1e-8);
@@ -740,7 +742,8 @@ static void apply_batch(SolverState *s, double lr)
 }
 
 static int process_epoch(ClauseReader *r, SolverState *s, ActiveCache *cache,
-                         uint32_t batch_clauses, double lr, uint64_t *unsat_out)
+                         uint32_t batch_clauses, double lr, int hard_focus,
+                         double grad_clip, uint64_t *unsat_out)
 {
     if (!reader_rewind(r)) return 0;
     cache_reset(cache);
@@ -761,21 +764,35 @@ static int process_epoch(ClauseReader *r, SolverState *s, ActiveCache *cache,
             double lv = lits[i] > 0 ? 1.0 - x : x;
             violation *= fmax(lv, 1e-12);
         }
+        int weighted = (clause_flags & CLAUSE_FLAG_WEIGHTED) != 0;
         int hard = (clause_flags & CLAUSE_FLAG_HARD) != 0;
-        if (!satisfied) { unsat++; cache_add(cache, lits, n, stored_weight, hard); }
+        int optimize_clause = !hard_focus || !weighted || hard;
+        if (!satisfied) {
+            unsat++;
+            if (optimize_clause) cache_add(cache, lits, n, stored_weight, hard);
+        }
+        if (!optimize_clause) {
+            clause_id++;
+            if (++in_batch == batch_clauses) { apply_batch(s, lr, grad_clip); in_batch = 0; }
+            continue;
+        }
         double base_weight = (clause_flags & CLAUSE_FLAG_WEIGHTED)
-                           ? (hard ? 1e6 : fmin((double)stored_weight, 1e5))
+                           ? (hard ? fmin((double)stored_weight, 1e8) : fmin((double)stored_weight, 1e5))
                            : clause_weight(clause_id);
         double coef = base_weight * violation;
+        if (weighted && hard) {
+            double slack = fmax(1.0 - violation, 1e-12);
+            coef = base_weight * violation / slack;
+        }
         for (uint32_t i = 0; i < n; ++i) {
             uint32_t var = (uint32_t)(lits[i] < 0 ? -(int64_t)lits[i] : lits[i]);
             double lv = lits[i] > 0 ? 1.0 - s->x[var] : s->x[var];
             touch_gradient(s, var, coef * (lits[i] > 0 ? -1.0 : 1.0) / fmax(lv, 1e-12));
         }
         clause_id++;
-        if (++in_batch == batch_clauses) { apply_batch(s, lr); in_batch = 0; }
+        if (++in_batch == batch_clauses) { apply_batch(s, lr, grad_clip); in_batch = 0; }
     }
-    apply_batch(s, lr);
+    apply_batch(s, lr, grad_clip);
     if (status < 0 || r->clauses_read != r->meta.num_clauses) return 0;
     *unsat_out = unsat;
     return 1;
@@ -1096,7 +1113,8 @@ static int occurrence_offsets(const OccurrenceIndex *index, uint32_t var,
 
 static int collect_unsatisfied_pool(ClauseReader *reader, SolverState *solver,
                                     uint64_t *pool, uint32_t pool_capacity,
-                                    uint32_t *pool_size, Verification *result)
+                                    uint32_t *pool_size, Verification *result,
+                                    int hard_only)
 {
     if (!reader_rewind(reader)) return 0;
     memset(result, 0, sizeof(*result));
@@ -1120,7 +1138,7 @@ static int collect_unsatisfied_pool(ClauseReader *reader, SolverState *solver,
                 add_cost(&result->soft_cost, weight, &result->cost_overflow);
             }
         } else if (!sat) result->hard_unsatisfied++;
-        if (!sat) {
+        if (!sat && (!hard_only || (flags & CLAUSE_FLAG_HARD))) {
             unsat_seen++;
             if (*pool_size < pool_capacity) pool[(*pool_size)++] = (uint64_t)offset;
             else {
@@ -1136,10 +1154,12 @@ static int indexed_walksat_finisher(const char *store_path, ClauseReader *reader
                                     SolverState *solver, uint64_t max_flips,
                                     uint32_t checkpoint_interval, uint32_t pool_capacity,
                                     Verification *best, int *have_best, double *best_x,
-                                    uint64_t *flips_run)
+                                    uint64_t *flips_run, int hard_only,
+                                    uint64_t *index_entries_out)
 {
     OccurrenceIndex index;
-    if (!occurrence_index_build(reader, &index)) return 0;
+    if (!occurrence_index_build(reader, &index, hard_only)) return 0;
+    if (index_entries_out) *index_entries_out = index.entries;
     FILE *random_store = fopen(store_path, "rb");
     uint64_t *pool = malloc((size_t)pool_capacity * sizeof(*pool));
     uint64_t *occurrences = NULL;
@@ -1155,7 +1175,7 @@ static int indexed_walksat_finisher(const char *store_path, ClauseReader *reader
 
     uint32_t pool_size = 0;
     Verification current;
-    if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity, &pool_size, &current))
+    if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity, &pool_size, &current, hard_only))
         goto fail;
     retain_best(&current, best, have_best, best_x, solver);
     uint32_t n, flags;
@@ -1174,7 +1194,7 @@ static int indexed_walksat_finisher(const char *store_path, ClauseReader *reader
             pool[target_position] = pool[--pool_size];
             if (++stale_tries > pool_size * 2u) {
                 if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
-                                              &pool_size, &current)) goto fail;
+                                              &pool_size, &current, hard_only)) goto fail;
                 retain_best(&current, best, have_best, best_x, solver);
                 stale_tries = 0;
             }
@@ -1239,14 +1259,14 @@ static int indexed_walksat_finisher(const char *store_path, ClauseReader *reader
 
         if (*flips_run % checkpoint_interval == 0) {
             if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
-                                          &pool_size, &current)) goto fail;
+                                          &pool_size, &current, hard_only)) goto fail;
             retain_best(&current, best, have_best, best_x, solver);
-            if (current.satisfied == reader->meta.num_clauses) break;
+            if (hard_only ? (current.hard_unsatisfied == 0) : (current.satisfied == reader->meta.num_clauses)) break;
         }
     }
     {
         if (!collect_unsatisfied_pool(reader, solver, pool, pool_capacity,
-                                      &pool_size, &current)) goto fail;
+                                      &pool_size, &current, hard_only)) goto fail;
         retain_best(&current, best, have_best, best_x, solver);
     }
     fclose(random_store); free(pool); free(occurrences); free(clause); free(target_clause);
@@ -1296,7 +1316,7 @@ static void usage(const char *argv0)
         "  --finisher-passes N     global streamed make/break flips (default: %u)\n"
         "  --finisher-batch-flips N  positive-gain flips per pass (default: %u)\n"
         "  --finisher-max-clauses N  clause ceiling for finisher (default: %" PRIu64 ")\n"
-        "  --indexed-finisher      disk-indexed WalkSAT finisher (CNF only)\n"
+        "  --indexed-finisher      disk-indexed WalkSAT finisher (hard-only for WCNF)\n"
         "  --indexed-flips N       indexed-finisher flip budget (default: %" PRIu64 ")\n"
         "  --indexed-checkpoint N  full verification interval (default: %u)\n"
         "  --batch-clauses N       optimizer batch size (default: %u)\n"
@@ -1544,12 +1564,6 @@ int main(int argc, char **argv)
         free(opt.add_files);
         return 2;
     }
-    if ((meta.flags & STORE_FLAG_WEIGHTED) && opt.indexed_finisher) {
-        fprintf(stderr, "--indexed-finisher currently supports CNF only\n");
-        if (!opt.keep_store) unlink(opt.store_path);
-        free(opt.add_files);
-        return 2;
-    }
 
     if (opt.store_only) {
         if (opt.load_store && !validate_store_file(opt.store_path, &meta)) {
@@ -1587,8 +1601,12 @@ int main(int argc, char **argv)
     double *best_x = malloc(((size_t)meta.num_vars + 1) * sizeof(double));
     if (!best_x) io_ok = 0;
     for (uint32_t e = 0; io_ok && e < opt.epochs; ++e) {
+        int hard_focus = weighted_store &&
+                         (!have_best || best_verification.hard_unsatisfied > 0);
+        double grad_clip = hard_focus ? 1e8 : 1000.0;
         if (!process_epoch(&reader, &solver, &cache, opt.batch_clauses,
-                           opt.learning_rate / sqrt((double)e + 1.0), &unsat)) {
+                           opt.learning_rate / sqrt((double)e + 1.0),
+                           hard_focus, grad_clip, &unsat)) {
             io_ok = 0; break;
         }
         epochs_run = e + 1;
@@ -1616,15 +1634,19 @@ int main(int argc, char **argv)
     Verification verification = {0};
     uint32_t finisher_passes_run = 0;
     uint64_t indexed_flips_run = 0;
+    uint64_t index_entries = 0;
     if (io_ok && have_best && best_verification.satisfied < meta.num_clauses &&
-        opt.indexed_finisher && !weighted_store) {
+        opt.indexed_finisher && (!weighted_store || best_verification.hard_unsatisfied > 0)) {
         memcpy(solver.x, best_x, ((size_t)meta.num_vars + 1) * sizeof(double));
         io_ok = indexed_walksat_finisher(opt.store_path, &reader, &solver,
                                          opt.indexed_flips, opt.indexed_checkpoint,
                                          opt.active_clauses, &best_verification,
-                                         &have_best, best_x, &indexed_flips_run);
+                                         &have_best, best_x, &indexed_flips_run,
+                                         weighted_store, &index_entries);
         if (!io_ok) fprintf(stderr, "indexed finisher failed: %s\n", strerror(errno));
-    } else if (io_ok && have_best && best_verification.satisfied < meta.num_clauses &&
+    }
+    
+    if (io_ok && have_best && best_verification.satisfied < meta.num_clauses &&
         opt.finisher_passes && meta.num_clauses <= opt.finisher_max_clauses) {
         memcpy(solver.x, best_x, ((size_t)meta.num_vars + 1) * sizeof(double));
         io_ok = streaming_make_break_finisher(&reader, &solver, opt.finisher_passes,
@@ -1681,10 +1703,12 @@ int main(int argc, char **argv)
                           (double)opt.finisher_batch_flips *
                           (sizeof(uint32_t) + sizeof(double)) +
                           (double)opt.active_literals * sizeof(int32_t)) / (1024.0 * 1024.0);
-    double indexed_index_mb = opt.indexed_finisher
-        ? ((double)meta.num_literals * sizeof(uint64_t) +
-           ((double)meta.num_vars + 2.0) * sizeof(uint64_t)) / (1024.0 * 1024.0)
-        : 0.0;
+    double indexed_index_mb = 0.0;
+    if (opt.indexed_finisher) {
+        uint64_t lits_for_index = index_entries ? index_entries : meta.num_literals;
+        indexed_index_mb = ((double)lits_for_index * sizeof(uint64_t) +
+                            ((double)meta.num_vars + 2.0) * sizeof(uint64_t)) / (1024.0 * 1024.0);
+    }
     resident_mb += indexed_index_mb;
     if (opt.json) {
         const char *status_str = solved ? "SATISFIED" :
