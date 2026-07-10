@@ -17,6 +17,104 @@ This document consolidates **every** benchmark table from `README.md`, `BENCHMAR
 
 ---
 
+# ⏳ Phase 7 — July 2026: V3 Disk-Streaming Architecture
+
+> Commits `ecddb34` → `58dae03` — V3 disk-streaming solver, indexed/exact
+> modes, executable tutorials, WCNF hard-repair finisher, and structured
+> combinatorial benchmark tooling.
+
+V3 is a different benchmark regime from V1/V2. It is designed for formulas
+where full clause state or a global variable-to-clause index should not be
+kept in RAM. V3 converts CNF/WCNF input into a binary stream, scans that stream
+on each global pass, and keeps only bounded active state plus optional
+temporary disk-backed index data.
+
+Do not merge the V3 numbers below into the older V1/V2 aggregate percentages.
+The goals are different:
+
+* **V2:** raw in-memory heuristic speed when the formula fits RAM.
+* **V3:** bounded-memory streaming, incremental stores, WCNF support, and
+  disk-indexed finishing.
+
+## V3 Streaming and Store Capabilities
+
+| Capability | Status | Notes |
+|---|---|---|
+| CNF input | Supported | DIMACS `p cnf` |
+| WCNF / partial MaxSAT input | Supported | Hard clauses via `top` weights or `h` prefix |
+| Persistent binary store | Supported | 40-byte header plus clause records |
+| Incremental `--add` | Supported | Transactional rollback on malformed append |
+| Exact CDCL fallback | Resource-limited | CNF only; formal UNSAT proof workflows still require independent checking |
+| Indexed finisher | CNF + WCNF hard repair | For WCNF, indexed phase repairs hard clauses only, then streamed finisher improves soft cost |
+| Memory model | Bounded active state | No default full clause table or global occurrence index in RAM |
+
+## V3 Planted 3-SAT Indexed-Finisher Matrix
+
+These are reproducible planted satisfiable instances. They are useful for
+checking V3 indexed-finisher behavior, but they are not a substitute for an
+independently sourced industrial benchmark suite.
+
+Standard run: 10 epochs, 100,000 indexed flips, checkpoint every 500 flips.
+
+| Variables | Clauses | Ratio | Seed | Result | Indexed flips | Solve time |
+|---:|---:|---:|---:|---:|---:|---:|
+| 100 | 430 | 4.30 | 101 | 430 / 430 | 14,555 | 400ms |
+| 100 | 923 | 9.23 | 102 | 923 / 923 | 339 | 32ms |
+| 100 | 2,000 | 20.00 | 103 | 2,000 / 2,000 | 59 | 13ms |
+| 250 | 1,065 | 4.26 | 201 | 1,065 / 1,065* | 40,997 | 1.46s |
+| 250 | 2,308 | 9.23 | 202 | 2,308 / 2,308 | 487 | 47ms |
+| 250 | 5,000 | 20.00 | 203 | 5,000 / 5,000 | 234 | 53ms |
+| 500 | 2,130 | 4.26 | 301 | 2,130 / 2,130 | 46,178 | 2.08s |
+| 500 | 4,615 | 9.23 | 302 | 4,615 / 4,615 | 535 | 64ms |
+| 500 | 10,000 | 20.00 | 303 | 10,000 / 10,000 | 345 | 92ms |
+| 1,000 | 4,260 | 4.26 | 401 | 4,259 / 4,260† | 500,000 | 25.37s |
+| 1,000 | 9,230 | 9.23 | 402 | 9,230 / 9,230 | 1,043 | 131ms |
+| 2,000 | 18,460 | 9.23 | 501 | 18,460 / 18,460 | 1,874 | 253ms |
+
+\* The 250-variable ratio-4.26 case initially reached 1,064/1,065 with the
+standard budget and solved after increasing the budget to 250,000 flips and 20
+epochs. Its final assignment was independently verified.
+
+† The 1,000-variable ratio-4.26 case reached 4,256/4,260 at 100,000 flips,
+4,258/4,260 at 250,000 flips, and 4,259/4,260 at 500,000 flips. It is retained
+as a visible failure rather than reported as solved.
+
+## V3 WCNF Indexed Hard-Repair Regression
+
+`tests/v3/test_wcnf_finisher.py` generates a 5-vertex, 3-color WCNF graph
+coloring instance with hard coloring constraints and soft color preferences.
+
+| Mode | Feasible | Hard unsatisfied | Soft cost | Indexed index |
+|---|---:|---:|---:|---:|
+| `--epochs 0 --finisher-passes 0 --indexed-finisher` | true | 0 | 30 | 0.001 MiB |
+| `--epochs 0 --finisher-passes 256 --indexed-finisher` | true | 0 | 10 | 0.001 MiB |
+
+This verifies the intended V3 WCNF sequence: indexed repair first finds a
+hard-feasible region, then the streamed finisher improves soft cost. The soft
+cost is heuristic and is not an optimality certificate.
+
+## V3 Large-Formula Streaming Stress
+
+Local stress testing documented in the V3 usage guide reports a
+37M-clause enterprise-timetabling-style stream with **9.62 MiB** peak bounded
+solver allocation under default settings. Treat this as a local streaming
+memory demonstration until the full artifact pack contains command, commit,
+input hash, raw output, host, and verifier output.
+
+## V3 Evidence Rules
+
+For every V3 result, preserve:
+
+* exact binary and commit;
+* input generator, seed, and input hash;
+* command line and timeout;
+* `bounded_memory_mb` and, when used, `indexed_index_mb`;
+* hard vs soft result for WCNF;
+* independent assignment/proof verification status;
+* whether the instance is planted, generated, benchmark-suite, or production.
+
+---
+
 # ⏳ Phase 1 — January 15, 2026: Initial Release (v1.0)
 
 > Commit `8c6fc20` — *"Initial release of NitroSAT"*

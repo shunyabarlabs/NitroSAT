@@ -15,15 +15,36 @@
 
 ---
 
+## Repository Status
+
+This repository is the **open-source NitroSAT research release**. It includes
+the public solver lineage currently present in this tree:
+
+| Solver path | Source | Status |
+|---|---|---|
+| V1 research solver | [`src/c/v1/nitrosat.c`](src/c/v1/nitrosat.c) | Open source / historical reference |
+| V2 in-memory heuristic solver | [`src/c/v2/nitrosatv2.c`](src/c/v2/nitrosatv2.c) | Open source / feature-rich local solver |
+| V3 disk-streaming solver | [`src/c/v3/nitrosatv3.c`](src/c/v3/nitrosatv3.c) | Open source / bounded-memory research release |
+
+Further production development of NitroSAT is **not open source**. The
+commercial version is available as the `nitro` engine through the
+[Navokoj API](https://navokoj.shunyabar.foo/), where ShunyaBar Labs continues
+work on hosted execution, production hardening, telemetry, billing, enterprise
+deployment, and commercial support.
+
+The goal of this split is simple: keep the research release inspectable and
+reproducible, while keeping the production infrastructure and future commercial
+engine development inside Navokoj.
+
+---
+
 ## Overview
 
-NitroSAT is a high-performance MaxSAT approximator with unusually good scaling behavior and high satisfaction rates on massive instances that achieves **O(M) linear time complexity** relative to the number of clauses. Unlike traditional CDCL-based solvers, NitroSAT treats Boolean satisfiability as a physics-informed dynamical system on a Riemannian manifold, using continuous relaxation, spectral methods, and topological analysis. Find the code [here](https://github.com/sethuiyer/NitroSAT/blob/main/src/c/v2/nitrosatv2.c).
-
-This repository is the open-source NitroSAT research release, including the
-public V1/V2 solver paths and the V3 disk-streaming architecture currently
-present in this tree. Further production development of NitroSAT is not open
-source and is available commercially as the `nitro` engine in the
-[Navokoj API](https://navokoj.shunyabar.foo/).
+NitroSAT is a high-performance MaxSAT approximator with unusually good scaling
+behavior and high satisfaction rates on massive instances. Unlike traditional
+CDCL-based solvers, NitroSAT treats Boolean satisfiability as a
+physics-informed dynamical system on a Riemannian manifold, using continuous
+relaxation, spectral methods, and topological analysis.
 
 We threw thousands of problems at NitroSAT—everything from domset_4 to 7-million-clause planted coloring monsters to random 3SAT, 5,000+ CNF instances and solver came out with a 77% perfect SATISFIED rate and a 99.7% median satisfaction. Assignments: https://huggingface.co/datasets/sethuiyer/navokoj_sat_2024 and benchmarks/README.md.
 
@@ -332,4 +353,9 @@ NitroSAT is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) fi
 - **ORCID**: [0009-0008-5446-2856](https://orcid.org/0009-0008-5446-2856)
 - **Sponsor**: Support development at [github.com/sponsors/sethuiyer](https://github.com/sponsors/sethuiyer/)
 
-Contributions are welcome. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+Bug reports, reproducibility notes, documentation fixes, and benchmark
+artifacts for this open-source research release are welcome. Production
+`nitro` engine development happens inside Navokoj and is not developed through
+this public repository.
+
+Please follow the [Code of Conduct](CODE_OF_CONDUCT.md).
